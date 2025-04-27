@@ -1,77 +1,141 @@
 "use client";
-import { useAuth } from "@/context/AuthContext";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Head from "next/head";
+import Navbar from "./components/Navbar";
+import HeroSection from "./components/HeroSection";
+import FilterBar from "./components/FilterBar";
+import BlogCard from "./components/BlogCard";
+
+// Mock data for featured post
+const featuredPost = {
+    title: "Exploring my nature walk",
+    excerpt:
+        "With each step, I uncover the soothing sounds of the forest, rustling of leaves, and the fresh scent of the outdoors, offering readers a serene escape and a chance to reconnect with nature's wonders.",
+    image: "/images/nature-walk.png",
+    author: "Alex || Traveler",
+    authorImage: "/images/author.png",
+    date: "25 April, 2025",
+    readTime: "10 minutes read",
+    slug: "exploring-nature-walk",
+};
+
+// Mock data for blogs
+const blogs = [
+    {
+        category: "Food",
+        image: "/images/food1.png",
+        title: "Delightful secret recipes",
+        excerpt: "Discover unique flavors and traditional cooking techniques.",
+        author: "Chef Maria",
+        authorImage: "/images/author.png",
+        date: "23 April, 2025",
+        readTime: "8 minutes read",
+        slug: "delightful-secret-recipes",
+    },
+    {
+        category: "Adventure",
+        image: "/images/advanture1.png",
+        title: "Campfire under forest",
+        author: "Wilderness Explorer",
+        authorImage: "/images/author.png",
+        date: "22 April, 2025",
+        readTime: "12 minutes read",
+        slug: "campfire-under-forest",
+    },
+    {
+        category: "Food",
+        image: "/images/food1.png",
+        title: "Portuguese Street Food",
+        author: "Food Critic",
+        authorImage: "/images/author.png",
+        date: "20 April, 2025",
+        readTime: "5 minutes read",
+        slug: "portuguese-street-food",
+    },
+    {
+        category: "Technologies",
+        image: "/images/starlink.png",
+        title: "The future of Starlink",
+        author: "Tech Analyst",
+        authorImage: "/images/author.png",
+        date: "19 April, 2025",
+        readTime: "15 minutes read",
+        slug: "future-of-starlink",
+    },
+    {
+        category: "Adventure",
+        image: "/images/advanture1.png",
+        title: "Candlelight forest camping",
+        author: "Night Explorer",
+        authorImage: "/images/author.png",
+        date: "17 April, 2025",
+        readTime: "7 minutes read",
+        slug: "candlelight-forest-camping",
+    },
+    {
+        category: "Food",
+        image: "/images/food1.png",
+        title: "Barbeques Street Food",
+        author: "Culinary Traveler",
+        authorImage: "/images/author.png",
+        date: "15 April, 2025",
+        readTime: "6 minutes read",
+        slug: "barbeques-street-food",
+    },
+    {
+        category: "Technologies",
+        image: "/images/starlink.png",
+        title: "Future of Augmented Reality",
+        author: "Tech Futurist",
+        authorImage: "/images/author.png",
+        date: "12 April, 2025",
+        readTime: "10 minutes read",
+        slug: "future-augmented-reality",
+    },
+];
 
 export default function Home() {
-  const [posts, setPosts] = useState([]);
-  const [search, setSearch] = useState("");
-  const { user } = useAuth();
-  const router = useRouter();
+    const [activeCategory, setActiveCategory] = useState("All");
 
-  useEffect(() => {
-    fetchPosts();
-  }, [search]);
+    const filteredBlogs =
+        activeCategory === "All"
+            ? blogs
+            : blogs.filter((blog) => blog.category === activeCategory);
 
-  const fetchPosts = async () => {
-    try {
-      const res = await fetch(`/api/posts?search=${search}`);
-      if (!res.ok) throw new Error("Failed to fetch posts");
-      const data = await res.json();
-      setPosts(data);
-    } catch (err) {
-      console.error("Error fetching posts:", err);
-    }
-  };
+    return (
+        <div className="min-h-screen bg-white">
+            <Head>
+                <title>BlogSphere - Your Personal Blog Space</title>
+                <meta
+                    name="description"
+                    content="Discover interesting blog posts from various categories"
+                />
+                <link rel="icon" href="/favicon.ico" />
+            </Head>
 
-  return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-4">BlogSphere</h1>
-      <input
-        type="text"
-        placeholder="Search posts..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full p-2 mb-4 border rounded"
-      />
-      {/* {user && ( */}
-      <Link
-        href="/create"
-        className="bg-blue-500 text-white p-2 rounded mb-4 inline-block"
-      >
-        Create Post
-      </Link>
-      {/* )} */}
-      {/* <div className="grid gap-4">
-        {posts.map((post) => (
-          <div key={post._id} className="border p-4 rounded">
-            <Link href={`/posts/${post._id}`}>
-              <h2 className="text-xl font-bold">{post.title}</h2>
-            </Link>
-            <p>{post.content.substring(0, 100)}...</p>
-            <p className="text-sm">By {post.author.name}</p>
-            <p className="text-sm">
-              Likes: {post.likes.length} | Dislikes: {post.dislikes.length}
-            </p>
-          </div>
-        ))}
-      </div> */}
+            {/* Position navbar absolutely so it overlays the hero section */}
+            <header className="absolute top-0 left-0 right-0 z-50">
+                <Navbar />
+            </header>
 
-      <div className="grid gap-4">
-        <div className="border p-4 rounded">
-          <Link href={`/posts/1`}>
-            <h2 className="text-xl font-bold">Post Title</h2>
-          </Link>
-          <p>
-            Lorem ipsum dolor sit amet, consectetur adipisicing elit.
-            Dignissimos sit commodi doloremque consectetur qui nam pariatur
-            quisquam, nobis nemo aliquid.
-          </p>
-          <p className="text-sm">By mahdi</p>
-          <p className="text-sm">Likes: 25 | Dislikes: 4</p>
+            {/* Hero section will now start from the top */}
+            <HeroSection post={featuredPost} />
+
+            <main className="container mx-auto px-4">
+                <FilterBar activeCategory={activeCategory} sortBy="Newest" />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                    {filteredBlogs.map((blog, index) => (
+                        <BlogCard key={index} {...blog} />
+                    ))}
+                </div>
+
+                <div className="flex justify-end mb-12">
+                    <button className="px-4 py-2 bg-gray-200 rounded-full">
+                        Top
+                    </button>
+                </div>
+            </main>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
