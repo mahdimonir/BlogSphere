@@ -1,9 +1,9 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import swaggerUi from "swagger-ui-express";
 import fs from "fs/promises";
 import path from "path";
-import swaggerUi from "swagger-ui-express";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,35 +22,38 @@ const app = express();
 
 // Define allowed origins
 const allowedOrigins = [
-  process.env.LOCAL_ORIGIN,
-  process.env.PRODUCTION_ORIGIN,
+  "http://localhost:3000", // Local Next.js frontend
+  "https://your-frontend-vercel-app.vercel.app", // Replace with your production frontend URL
 ];
 
-// CORS configuration
+// CORS middleware
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g., Postman, curl)
       if (!origin) return callback(null, true);
 
-      // Check if the origin is in the allowed list
+      // Allow requests from allowed origins
       if (allowedOrigins.includes(origin)) {
-        callback(null, true);
+        callback(null, origin); // Reflect the requesting origin
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposedHeaders: ["Set-Cookie"],
+    // Ensure preflight requests are cached for 24 hours
+    maxAge: 86400,
   })
 );
 
+// Handle OPTIONS preflight requests explicitly
+app.options("*", cors()); // Respond to all OPTIONS requests
+
 // Serve Swagger UI static files
-app.use(
-  "/swagger-ui",
-  express.static(path.join(__dirname, "../node_modules/swagger-ui-dist"))
-);
+app.use("/swagger-ui", express.static(path.join(__dirname, "../node_modules/swagger-ui-dist")));
 
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
@@ -84,12 +87,7 @@ app.get("/debug-swagger-json", async (req, res) => {
     );
     res.json(swaggerDocument);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        error: "Failed to load swagger-output.json",
-        details: error.message,
-      });
+    res.status(500).json({ error: "Failed to load swagger-output.json", details: error.message });
   }
 });
 
@@ -101,7 +99,7 @@ try {
   app.use(
     "/api-docs",
     (req, res, next) => {
-      console.log("Serving /api-docs");
+      console.log(`Serving /api-docs from origin: ${req.get("origin")}`);
       swaggerUi.serve(req, res, next);
     },
     swaggerUi.setup(swaggerDocument)
