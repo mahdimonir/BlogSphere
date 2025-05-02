@@ -1,8 +1,13 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import fs from "fs/promises";
+import path from "path";
 import swaggerUi from "swagger-ui-express";
-import swaggerDocument from "./swagger-output.json" assert { type: "json" };
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import { errorHandler } from "./middleware/errorHandler.js";
 import { upload } from "./middleware/multerMiddleware.js";
@@ -26,7 +31,6 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.use(cookieParser());
 
-// Apply Multer for multipart/form-data requests
 app.use((req, res, next) => {
   if (req.is("multipart/form-data")) {
     upload(req, res, next);
@@ -46,6 +50,10 @@ app.get("/", (req, res) => {
   res.send("Hello from Express server with mahdi!!");
 });
 
+// Load swagger-output.json
+const swaggerDocument = JSON.parse(
+  await fs.readFile(path.join(__dirname, "swagger-output.json"), "utf-8")
+);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(errorHandler);
