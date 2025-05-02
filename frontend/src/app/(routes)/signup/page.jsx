@@ -36,7 +36,7 @@ const Signup = () => {
       setServerError(null);
       setLoading(true);
 
-      const res = await axios.post(`${API_URL}/users/signup`, data, {
+      const res = await axios.post(`${API_URL}/auth/signup`, data, {
         withCredentials: true,
       });
 
@@ -88,7 +88,7 @@ const Signup = () => {
       }
 
       const res = await axios.post(
-        `${API_URL}/users/verify`,
+        `${API_URL}/auth/verify`,
         {
           email: userData.email,
           otp: enteredOtp,
@@ -127,7 +127,7 @@ const Signup = () => {
       setTimer(60);
 
       await axios.post(
-        `${API_URL}/users/resend-otp`,
+        `${API_URL}/auth/resend-otp`,
         {
           email: userData.email,
         },

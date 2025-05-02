@@ -1,18 +1,20 @@
-// Import dependencies
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "./swagger-output.json" assert { type: "json" };
 
-// Import routes
+import { errorHandler } from "./middleware/errorHandler.js";
+import { upload } from "./middleware/multerMiddleware.js";
+import adminRouter from "./routes/adminRoutes.js";
 import authRouter from "./routes/authRoutes.js";
-import { errorHandler } from "./utils/errorHandler/errorHandler.js";
+import commentRouter from "./routes/commentRoutes.js";
+import likeRouter from "./routes/likeRoutes.js";
+import postRouter from "./routes/postRoutes.js";
+import userRouter from "./routes/userRoutes.js";
 
-// Initialize Express app
 const app = express();
 
-// Middleware
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN,
@@ -24,19 +26,28 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.use(cookieParser());
 
-// API Routes
-app.use("/api/v1/users", authRouter);
+// Apply Multer for multipart/form-data requests
+app.use((req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    upload(req, res, next);
+  } else {
+    next();
+  }
+});
 
-// Default Route
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/users", userRouter);
+app.use("/api/v1/posts", postRouter);
+app.use("/api/v1/comments", commentRouter);
+app.use("/api/v1/likes", likeRouter);
+
 app.get("/", (req, res) => {
   res.send("Hello from Express server with mahdi!!");
 });
 
-// Auth Docs
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// Error-handler
 app.use(errorHandler);
 
-// Export the app
 export { app };
