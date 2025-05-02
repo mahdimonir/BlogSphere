@@ -1,8 +1,13 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import fs from "fs/promises";
+import path from "path";
 import swaggerUi from "swagger-ui-express";
-import swaggerDocument from "./swagger-output.json" assert { type: "json" };
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import { errorHandler } from "./middleware/errorHandler.js";
 import { upload } from "./middleware/multerMiddleware.js";
@@ -17,7 +22,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true,
   })
 );
@@ -46,7 +51,15 @@ app.get("/", (req, res) => {
   res.send("Hello from Express server with mahdi!!");
 });
 
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+// Load and serve Swagger UI
+try {
+  const swaggerDocument = JSON.parse(
+    await fs.readFile(path.join(__dirname, "swagger-output.json"), "utf-8")
+  );
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+} catch (error) {
+  console.error("Error loading Swagger UI:", error);
+}
 
 app.use(errorHandler);
 
