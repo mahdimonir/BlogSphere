@@ -22,7 +22,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: process.env.CORS_ORIGIN || "*",
     credentials: true,
   })
 );
@@ -50,11 +50,14 @@ app.get("/", (req, res) => {
   res.send("Hello from Express server with mahdi!!");
 });
 
-// Load swagger-output.json
-const swaggerDocument = JSON.parse(
-  await fs.readFile(path.join(__dirname, "swagger-output.json"), "utf-8")
-);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+try {
+  const swaggerDocument = JSON.parse(
+    await fs.readFile(path.join(__dirname, "swagger-output.json"), "utf-8")
+  );
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+} catch (error) {
+  console.error("Error setting up Swagger UI:", error);
+}
 
 app.use(errorHandler);
 
