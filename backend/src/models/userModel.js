@@ -1,46 +1,69 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
+import { Schema, model } from "mongoose";
+import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, "Name is required"],
-    trim: true,
+const userSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Name is required"],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, "Email is required."],
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: [true, "Password is required!"],
+      minlength: [8, "Password must be at least 8 characters!"],
+    },
+    userName: {
+      type: String,
+      unique: [true, "Username must be unique!"],
+      lowercase: true,
+      trim: true,
+    },
+    avatar: {
+      type: String, // cloudinary url
+    },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+    isSuspended: {
+      type: Boolean,
+      default: false,
+    },
+    otp: {
+      type: String,
+    },
+    otpExpires: {
+      type: Number,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    refreshToken: {
+      type: String,
+    },
+    resetPasswordOTP: {
+      type: String,
+    },
+    resetPasswordOTPExpires: {
+      type: Number,
+    },
   },
-  email: {
-    type: String,
-    required: [true, "Email is required"],
-    unique: true,
-    lowercase: true,
-    trim: true,
-  },
-  password: {
-    type: String,
-    required: [true, "Password is required"],
-    minlength: [8, "Password must be at least 8 characters"],
-  },
-  otp: {
-    type: String,
-  },
-  otpExpires: {
-    type: Number,
-  },
-  isVarified: {
-    type: Boolean,
-    default: false,
-  },
-  refreshToken: {
-    type: String,
-  },
-  resetPasswordOTP: {
-    type: String,
-  },
-  resetPasswordOTPExpires: {
-    type: Number,
-  },
-});
+  { timestamps: true }
+);
 
+userSchema.plugin(mongooseAggregatePaginate);
 // Hash password before saving
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
@@ -75,7 +98,7 @@ userSchema.methods.isPasswordCorrect = async function (password) {
 // Generate access token
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
-    { _id: this._id, email: this.email },
+    { _id: this._id, email: this.email, userName: this.userName },
     process.env.ACCESS_TOKEN_SECRET,
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRY }
   );
@@ -88,4 +111,4 @@ userSchema.methods.generateRefreshToken = function () {
   });
 };
 
-export const User = mongoose.model("User", userSchema);
+export const User = model("User", userSchema);
