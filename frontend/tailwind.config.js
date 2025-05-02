@@ -1,18 +1,15 @@
-module.exports = {
-    content: [
-        "./src/pages/**/*.{js,jsx,ts,tsx}",
-        "./src/components/**/*.{js,jsx,ts,tsx}",
-    ],
-    theme: {
-        extend: {},
-    },
-    plugins: [],
-};
+import { config } from "tailwindcss";
 
-// File: next.config.js
-module.exports = {
-    reactStrictMode: true,
-    images: {
-        domains: ["localhost"],
-    },
-};
+export default config({
+  content: [
+    "./src/app/**/**/*.{js,jsx,ts,tsx}",
+    "./src/app/**/*.{js,jsx,ts,tsx}",
+    "./src/app/components/**/*.{js,jsx,ts,tsx}",
+    "./src/app/components/*.{js,jsx,ts,tsx}",
+    "./src/app/**/*.{js,jsx,ts,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+});
