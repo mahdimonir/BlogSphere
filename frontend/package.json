@@ -16,8 +16,7 @@
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "react-hook-form": "^7.56.1",
-        "react-hot-toast": "^2.5.2",
-        "react-spinners": "^0.17.0"
+        "react-hot-toast": "^2.5.2"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4",

@@ -1,16 +1,22 @@
-const express = require("express");
-const router = express.Router();
-const {
+import { Router } from "express";
+import {
   createComment,
-  getComments,
+  createNestedComment,
   deleteComment,
-  getAllComments,
-} = require("../controllers/commentController");
-const { auth, admin } = require("../middleware/auth");
+  getComments,
+  updateComment,
+} from "../controllers/commentController.js";
+import { verifyJWT } from "../middleware/authMiddleware.js";
 
-router.get("/:postId", getComments);
-router.post("/:postId", auth, createComment);
-router.delete("/:id", auth, admin, deleteComment);
-router.get("/all", auth, admin, getAllComments);
+const router = Router();
 
-module.exports = router;
+// Comment routes
+router.route("/").post(verifyJWT, createComment);
+router.route("/replies").post(verifyJWT, createNestedComment);
+router
+  .route("/:commentId")
+  .patch(verifyJWT, updateComment)
+  .delete(verifyJWT, deleteComment);
+router.route("/:postId").get(getComments);
+
+export default router;

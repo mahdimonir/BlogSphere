@@ -1,14 +1,18 @@
 import jwt from "jsonwebtoken";
 import { User } from "../models/userModel.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
 import {
   ApiError,
   DatabaseError,
   NotFoundError,
   ValidationError,
-} from "../utils/errorHandler/ApiError.js";
-import generateOtp from "../utils/generateOtp.js";
+} from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import {
+  deleteFileFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
+import { generateOtp, generateUsername } from "../utils/randomGenerator.js";
 import { sendEmail } from "../utils/sendMail/index.js";
 import { throwIf } from "../utils/throwIf.js";
 
@@ -61,8 +65,10 @@ const signup = asyncHandler(async (req, res) => {
 
   throwIf(
     existingUser,
-    new ApiError(409, "User with this email already exists")
+    new ApiError(409, "User with this email or username already exists!")
   );
+
+  const userName = generateUsername(name);
 
   const otp = generateOtp();
   const otpExpires = Date.now() + 30 * 60 * 1000;
@@ -71,6 +77,7 @@ const signup = asyncHandler(async (req, res) => {
     name,
     email,
     password,
+    userName,
     otp,
     otpExpires,
   });
@@ -102,7 +109,7 @@ const signup = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           "OTP sent successfully on your email.",
-          createdUser.isVarified
+          createdUser.isVerified
         )
       );
   } catch (error) {
@@ -121,7 +128,7 @@ const verifyAccount = asyncHandler(async (req, res) => {
 
   throwIf(!user, new NotFoundError("User not found"));
 
-  throwIf(user.isVarified, new ValidationError("User already verified"));
+  throwIf(user.isVerified, new ValidationError("User already verified"));
 
   throwIf(user.otp?.trim() !== otp?.trim(), new ValidationError("Invalid OTP"));
 
@@ -130,7 +137,7 @@ const verifyAccount = asyncHandler(async (req, res) => {
     new ValidationError("OTP has expired. Please request new OTP")
   );
 
-  user.isVarified = true;
+  user.isVerified = true;
   user.otp = undefined;
   user.otpExpires = undefined;
   await user.save({ validateBeforeSave: false });
@@ -138,7 +145,7 @@ const verifyAccount = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, user.isVarified, "Email verified successfully!")
+      new ApiResponse(200, user.isVerified, "Email verified successfully!")
     );
 });
 
@@ -153,7 +160,7 @@ const resendOtp = asyncHandler(async (req, res) => {
   throwIf(!user, new NotFoundError("User not found"));
 
   throwIf(
-    user.isVarified,
+    user.isVerified,
     new ValidationError("This account has already verified.")
   );
 
@@ -187,24 +194,24 @@ const resendOtp = asyncHandler(async (req, res) => {
 
 // Login
 const login = asyncHandler(async (req, res) => {
-  const { email, password, rememberMe } = req.body;
-
-  // Debug input
-  console.log("Login input:", { email, password, rememberMe });
+  const { email, userName, password, rememberMe } = req.body;
 
   // Strict validation
   throwIf(
-    !email ||
-      !password ||
+    (!email && !userName) ||
       typeof password !== "string" ||
       password.trim() === "",
     new ValidationError(
-      "Email and password are required and must be non-empty strings"
+      "Either email or username, and a non-empty password string are required"
     )
   );
 
-  const user = await User.findOne({ email });
-  throwIf(!user, new NotFoundError("User does not exist"));
+  const user = await User.findOne({
+    $or: [{ userName }, { email }],
+  });
+
+  // Avoid exposing user existence directly
+  throwIf(!user, new ValidationError("Invalid credentials"));
 
   // Check if user has a password
   throwIf(
@@ -219,7 +226,7 @@ const login = asyncHandler(async (req, res) => {
   throwIf(!isPasswordValid, new ApiError(401, "Invalid user credentials"));
 
   throwIf(
-    !user.isVarified,
+    !user.isVerified,
     new ApiError(403, "Please verify your email before logging in")
   );
 
@@ -253,7 +260,7 @@ const login = asyncHandler(async (req, res) => {
 // Logout
 const logout = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
-    req.user._id,
+    req.userId,
     {
       $unset: {
         refreshToken: 1,
@@ -383,37 +390,77 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 // Update User
-const updateUser = asyncHandler(async (req, res) => {
-  const id = req.params.id;
+const updateUserInfo = asyncHandler(async (req, res) => {
+  // Sanitize req.body to exclude sensitive fields
+  const sensitiveFields = ["password", "refreshToken", "role"];
+  const updates = Object.keys(req.body).reduce((acc, key) => {
+    if (!sensitiveFields.includes(key)) {
+      acc[key] = req.body[key];
+    }
+    return acc;
+  }, {});
 
+  // Validate updates (example for email)
+  throwIf(
+    updates.email && !/^\S+@\S+\.\S+$/.test(updates.email),
+    new ValidationError("Invalid email format")
+  );
+
+  // Update the user
   const updateUser = await User.findByIdAndUpdate(
-    id,
-    {
-      $set: req.body,
-    },
-    { new: true } // Return the updated document
+    req.userId,
+    { $set: updates },
+    { new: true }
   ).select("-password -refreshToken");
 
   throwIf(!updateUser, new NotFoundError("User not found"));
 
   return res
     .status(200)
-    .json(new ApiResponse(200, updateUser, "User data updated successfully"));
+    .json(new ApiResponse(200, updateUser, "Profile updated successfully"));
 });
 
-// Delete User
-const deleteUser = asyncHandler(async (req, res) => {
-  const id = req.params.id;
+// Update user avatar
+const updateUserAvatar = asyncHandler(async (req, res) => {
+  const avatarFile = req.files?.avatar?.[0];
+  throwIf(!avatarFile, new ValidationError("Avatar file missing"));
 
-  const deleteUser = await User.findByIdAndDelete(id).select(
+  const avatar = await uploadOnCloudinary(avatarFile.path);
+  throwIf(!avatar?.url, new ValidationError("Avatar upload failed"));
+
+  const user = await User.findById(req.userId);
+  throwIf(!user, new NotFoundError("User not found"));
+
+  if (user.avatar) {
+    const deleteResult = await deleteFileFromCloudinary(user.avatar);
+  }
+
+  user.avatar = avatar.url;
+  await user.save();
+
+  const updatedUser = await User.findById(req.userId).select("-password");
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedUser, "Avatar updated successfully"));
+});
+
+// Delete user
+const deleteUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.userId);
+  throwIf(!user, new NotFoundError("User not found"));
+
+  if (user.avatar) {
+    const deleteResult = await deleteFileFromCloudinary(user.avatar);
+  }
+
+  const deletedUser = await User.findByIdAndDelete(req.userId).select(
     "-password -refreshToken"
   );
-
-  throwIf(!deleteUser, new NotFoundError("User not found"));
+  throwIf(!deletedUser, new NotFoundError("User not found"));
 
   return res
     .status(200)
-    .json(new ApiResponse(200, deleteUser, "User deleted successfully"));
+    .json(new ApiResponse(200, deletedUser, "User deleted successfully"));
 });
 
 // Export all controllers
@@ -426,6 +473,7 @@ export {
   resendOtp,
   resetPassword,
   signup,
-  updateUser,
+  updateUserAvatar,
+  updateUserInfo,
   verifyAccount,
 };

@@ -68,7 +68,7 @@ export default function LoginPage() {
       }
 
       const res = await axios.post(
-        `${API_URL}/users/login`,
+        `${API_URL}/auth/login`,
         { email, password, rememberMe },
         { withCredentials: true }
       );
@@ -104,7 +104,7 @@ export default function LoginPage() {
       setLoading(true);
 
       const res = await axios.post(
-        `${API_URL}/users/forget-password`,
+        `${API_URL}/auth/forget-password`,
         { email },
         { withCredentials: true }
       );
@@ -143,7 +143,7 @@ export default function LoginPage() {
       }
 
       const res = await axios.post(
-        `${API_URL}/users/reset-password`,
+        `${API_URL}/auth/reset-password`,
         { email: userEmail, otp: enteredOtp, password },
         { withCredentials: true }
       );
@@ -177,7 +177,7 @@ export default function LoginPage() {
       setTimer(60);
 
       const res = await axios.post(
-        `${API_URL}/users/forget-password`,
+        `${API_URL}/auth/forget-password`,
         { email: userEmail },
         { withCredentials: true }
       );
@@ -233,14 +233,22 @@ export default function LoginPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await axios.get(`${API_URL}/users/me`, {
-          withCredentials: true,
-        });
+        let res;
+        try {
+          res = await axios.get(`${API_URL}/users/profile/me`, {
+            withCredentials: true,
+          });
+        } catch {
+          res = await axios.get(`${API_URL}/admins/profile/me`, {
+            withCredentials: true,
+          });
+        }
+
         if (res.status === 200) {
           router.push("/");
         }
       } catch {
-        // Not authenticated, stay on page
+        // Both user and admin failed - not authenticated
       }
     };
     checkAuth();
