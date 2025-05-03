@@ -1,4 +1,6 @@
+// tailwind.config.js
 module.exports = {
+    darkMode: "class",
     content: [
         "./src/pages/**/*.{js,jsx,ts,tsx}",
         "./src/components/**/*.{js,jsx,ts,tsx}",
@@ -7,12 +9,4 @@ module.exports = {
         extend: {},
     },
     plugins: [],
-};
-
-// File: next.config.js
-module.exports = {
-    reactStrictMode: true,
-    images: {
-        domains: ["localhost"],
-    },
 };

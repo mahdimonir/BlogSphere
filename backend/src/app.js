@@ -1,9 +1,13 @@
-// Import dependencies
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import swaggerUi from "swagger-ui-express";
-import swaggerDocument from "./swagger-output.json" assert { type: "json" };
+import { readFileSync } from "fs";
+
+// Load Swagger JSON manually
+const swaggerDocument = JSON.parse(
+  readFileSync(new URL("./swagger-output.json", import.meta.url))
+);
 
 // Import routes
 import authRouter from "./routes/authRoutes.js";
@@ -38,5 +42,4 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 // Error-handler
 app.use(errorHandler);
 
-// Export the app
 export { app };
