@@ -25,6 +25,6 @@ router.route("/refresh-token").post(refreshAccessToken);
 router.route("/forget-password").post(forgetPassword);
 router.route("/reset-password").post(resetPassword);
 router.route("/update").put(isAuthenticated, updateUser);
-router.route("/delece").delete(isAuthenticated, deleteUser);
+router.route("/delete").delete(isAuthenticated, deleteUser);
 
 export default router;

@@ -26,3 +26,30 @@
   font-family: Arial, Helvetica, sans-serif;
 } 
 
+.pagination {
+  display: flex;
+  list-style: none;
+  gap: 8px;
+  padding: 0;
+}
+
+.page-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.page-item.active {
+  background-color: #007bff;
+  color: white;
+}
+
+.page-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dots {
+  padding: 8px 12px;
+}
