@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext"; // Make sure this is correctly set
-import UserDataFetch from "@/app/components/itemInfoSection";
+import TabActions from "@/app/components/tabActions";
 import { BeatLoader } from "react-spinners";
 export default function User() {
   const [user, setUser] = useState(null);
@@ -13,7 +13,6 @@ export default function User() {
   const { token } = useAuth(); // Get token from context
 
   useEffect(() => {
-
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -24,7 +23,16 @@ export default function User() {
           }
         );
 
-        if (!res.ok) throw new Error("No data found");
+        if (!res.ok){
+            if(res.status=="404") throw new Error("Data not Found")
+              else if( res.status=="400") throw new Error("Bad request")
+               else if(res.status=="401") throw new Error("Unauthorized request")
+                else if(res.status=="500") throw new Error("Internal server error")
+                 else{
+                throw new Error("Failed to fecth data")
+              }
+        }
+
         const data = await res.json();
         setUser(data); 
       } catch (err) {
@@ -40,7 +48,7 @@ export default function User() {
     <BeatLoader color="gray" size="10px" />
   </div>
 
-  if (err) return <div className="text-xl font-bold text-gray-600 w-full h-screen flex justify-center items-center">{err}</div>;
+  if (err) return <div className="text-xl font-bold text-gray-600 w-full h-screen flex justify-center items-center">{err.message}</div>;
   //prevent ui from rendering if user is null for ui improvemnt
   return (
     <div className="w-full min-h-screen flex flex-col gap-3 p-3">
@@ -80,18 +88,17 @@ export default function User() {
       </div>
       </div>
       {/* client component for data fetching */}
-   <UserDataFetch
+   <TabActions
     tabs={
           [
             {content:"All posts", api:process.env.NEXT_PUBLIC_API_URL+"/posts/getAllPostsById"},
             {content:"Pending Posts", api:process.env.NEXT_PUBLIC_API_URL+"/posts/getAllPendingPostsById"},
-            {content:"Suspend", api:process.env.NEXT_PUBLIC_API_URL+"/suspend/getAllSuspendPostsById"},
+            {content:"Suspended", api:process.env.NEXT_PUBLIC_API_URL+"/suspend/getAllSuspendPostsByUserId"},
             {content:"Actions", api:""}
 
           ]
         }
     itemInfo={user?.data}
-    type={"profileUI"}
     />
     
     </div>

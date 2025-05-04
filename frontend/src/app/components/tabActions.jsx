@@ -1,19 +1,20 @@
 "use client"
 import { useState,useEffect } from "react"
 import { BeatLoader } from "react-spinners";
+import { useAuth } from "@/context/AuthContext";
 
-export default function UserDataFetch({tabs,itemInfo}){
+export default function tabActions({tabs,itemInfo}){
   //tab[0] is default tab for all
   const [activeTab,setActiveTab] = useState(tabs[0].content);
   const [tabData,setTabData] = useState(null);
   const [loading,setLoading] = useState(false);
   const [err,setErr] = useState(null);
-
+  const {user,token} =useAuth();
+  
     useEffect(()=>{
      setErr(null)
-
       //fecth data from collections by userid  or username
-    const currentTabAPI = tabs.find((item)=> item.content==activeTab)
+     const currentTabAPI = tabs.find((item)=> item.content==activeTab)
     if (!currentTabAPI?.api) return;
 
     const fetchData = async ()=>{
@@ -30,14 +31,27 @@ export default function UserDataFetch({tabs,itemInfo}){
        finally{
         setLoading(false)
        }
-
       }
       fetchData();
-   
-
+  
     },[activeTab,tabs])
 
-
+const content =()=>{
+     switch (activeTab) {
+      case "All posts" :
+      return <AllPosts data={tabData} />
+    
+      case "Pending posts":
+       return <PendingPosts data={tabData} />
+      
+      case "Suspended":
+      return <Suspended data={tabData} />
+      
+      case "Actions":
+      return <Action data ={ tabData} />
+    
+     }
+}
 
 
 return(<>
@@ -56,10 +70,57 @@ return(<>
            {
             err && <div className="w-full h-full flex justify-center items-center text-red-500 font-bold ">Something went wrong ! Need to set up proper api </div>
            }
+           {
+            !loading && !err && !tabData ? <div className="p-3"> {content}</div> :
+            <div className="w-full h-full flex justify-center items-center text-sm font-bold">Empty</div>
+           }
         </div>
 
       </div>
 </>)
 
+}
+
+
+const AllPosts =({data})=>{
+  return(<>
+    <div>
+    List of all posts
+    </div>
+    
+    </>)
+
+}
+
+const PendingPosts =({data})=>{
+  return(<>
+    <div>
+    List of all pending posts
+    </div>
+    
+    </>)
+
+}
+
+const Suspended =({data})=>{
+  return(<>
+    <div>
+    List of all suspended posts
+    </div>
+    
+    </>)
+
+}
+const Action =({data})=>{
+  return(<>
+    <div className="w-full h-full flex flex-col justify-center items-center ">
+   <div className="border p-3 ">
+   <span className="text-sm font-bold">Suspend user account</span> 
+     <input type="text" className="border-gray-500 p-" placeholder="Describe the reason" />
+    
+    </div>
+    </div>
+    
+    </>)
 
 }

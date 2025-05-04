@@ -1,7 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
 // import { useAuth } from "@/context/AuthContext";
 // import { LayoutGridIcon } from "lucide-react";
 // import Link from "next/link";
@@ -294,16 +293,8 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function DefaultTab(){
   const router =useRouter();
-  const {user}= useAuth()
    useEffect(()=>{
-    if (!user || user?.role !="admin") {
-      //  router.push("/login");
-      //Fo development only else this line should be deleted
-         router.push("dashboard/users")
-
-        } else {
              router.push("dashboard/users")
-       } 
 },[])
 return null
 }

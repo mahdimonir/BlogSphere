@@ -1,27 +1,43 @@
 import DashBoardSearch from "@/app/components/dashboard_user_details";
 import ClientWrapper from "@/app/components/clientWrapper";
 import Link from "next/link";
+import { cookies } from "next/headers";
 
+
+
+//Server component
 export default async function Posts({ searchParams }) {
   const search = searchParams?.search || "";
-  const currentPage = Number(searchParams?.page || 1);
-
+  
+  const cookieStore = cookies();
+  const token = cookieStore.get("accessToken")?.value;
+    
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/posts?search=${search}`,
-    { cache: "no-store" }
+    { cache: "no-store",
+      headers:{Authorization:`Bearer ${token}`}
+     }
   );
-
+  
+  if (!res.ok){
+    if(res.status=="404") throw new Error("Data not Found")
+      else if( res.status=="400") throw new Error("Bad request")
+       else if(res.status=="401") throw new Error("Unauthorized request")
+        else if(res.status=="500") throw new Error("Internal server error , failed to fetch data.")
+         else{
+        throw new Error("Failed to fecth data")
+      }
+}
+  
   const data = await res.json();
+  //Pagination logic
   const posts = Array.isArray(data.data.posts) ? data.data.posts : [];
-
+  const currentPage = Number(searchParams?.page || 1);
   const pageSize = 10;
   const totalCount = posts.length;
-
   const start = (currentPage - 1) * pageSize + 1;
   const end = Math.min(start + pageSize - 1, totalCount);
-
   const paginatedPosts = posts.slice(start - 1, end);
-
   return (
     <>
     <div className="flex flex-col h-full ">

@@ -1,15 +1,27 @@
-// app/blog/[id]/page.js
+
 import React from 'react';
 import { format } from 'date-fns';
 import Image from 'next/image';
-
+import { cookies } from 'next/headers';
 const BlogPostPage = async ({ params }) => {
-  // Mock data - in a real app, you would fetch this from your API
+  const cookieStore = cookies();
+  const token =cookieStore.get("accessToken")?.value;
   const id = params?.id || "";
+
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/posts/${id}`,
     { cache: "no-store" }
   );
+  
+  if (!res.ok){
+    if(res.status=="404") throw new Error("Data not Found")
+      else if( res.status=="400") throw new Error("Bad request")
+       else if(res.status=="401") throw new Error("Unauthorized request")
+        else if(res.status=="500") throw new Error("Internal server error")
+         else{
+        throw new Error("Failed to fecth data")
+      }
+}
 
   const data = await res.json();
 

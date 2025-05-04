@@ -1,7 +1,6 @@
 
 
 import Breadcrumbs from "@/app/components/breadCrumbs";
-import DashboardRouteAuth from "@/app/components/dashboardAuth";
 import { LayoutGridIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -13,7 +12,6 @@ const tabs=[
 
 export default function Layout({ children }) {
   return (
-    <DashboardRouteAuth>
       <div className="flex w-full h-full">
         {/* Sidebar */}
         <aside className="fixed top-0 left-0 w-[10rem] h-full bg-white shadow pt-2">
@@ -37,7 +35,7 @@ export default function Layout({ children }) {
         </aside>
 
         {/* Main Content */}
-        <main className="pl-[10rem] min-w-[70rem] w-full min-h-screen bg-gray-100">
+        <main className="pl-[10rem] m-w-[70rem] w-full min-h-screen bg-gray-100">
           <div className="p-3">
             <Breadcrumbs />
           </div>
@@ -45,6 +43,5 @@ export default function Layout({ children }) {
           <div className="">{children}</div>
         </main>
       </div>
-    </DashboardRouteAuth>
   );
 }

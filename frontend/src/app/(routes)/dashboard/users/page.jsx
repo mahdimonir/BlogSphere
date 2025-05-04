@@ -1,19 +1,32 @@
 import DashBoardSearch from "@/app/components/dashboard_user_details";
 import ClientWrapper from "@/app/components/clientWrapper";
 import Link from "next/link";
+import { cookies } from "next/headers";
 
 export default async function UserManagement({ searchParams }) {
-  const search = searchParams?.search || "";
-  const currentPage = Number(searchParams?.page || 1);
-
+  const search = await searchParams ;
+  const currentPage = await search.page;
+  
+  const cookieStore =await cookies();
+  const token = await cookieStore.get("accessToken")?.value;
+  
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/users?search=${search}`,
-    { cache: "no-store" }
+     { cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+     },
   );
 
-  if (!res.ok) {
-    throw new Error("No user found!");
-  }
+  if (!res.ok){
+    if(res.status=="404") throw new Error("Data not Found")
+      else if( res.status=="400") throw new Error("Bad request")
+       else if(res.status=="401") throw new Error("Unauthorized request")
+        else if(res.status=="500") throw new Error("Internal server error , failed to fetch data.")
+         else{
+        throw new Error("Failed to fecth data")
+      }
+}
+  
 
   const data = await res.json();
 
