@@ -6,6 +6,6 @@ const router = Router();
 
 router.use(verifyJWT);
 
-router.route("/").patch(toggleLike);
+router.route("/toggle").patch(toggleLike);
 
 export default router;
