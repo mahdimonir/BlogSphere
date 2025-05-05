@@ -8,8 +8,8 @@ import {
   resendOtp,
   resetPassword,
   signup,
-  updateAvatar,
-  updateUser,
+  updateUserAvatar,
+  updateUserInfo,
   verifyAccount,
 } from "../controllers/authController.js";
 import { verifyJWT } from "../middleware/authMiddleware.js";
@@ -28,10 +28,10 @@ router.route("/reset-password").post(resetPassword);
 // Protected routes
 router.route("/logout").post(verifyJWT, logout);
 router.route("/refresh-token").post(refreshAccessToken);
-router.route("/update-user").patch(verifyJWT, updateUser);
+router.route("/update-user").patch(verifyJWT, updateUserInfo);
 router
   .route("/update-avatar")
-  .patch(verifyJWT, upload.single("avatar"), updateAvatar);
+  .patch(verifyJWT, upload.single("avatar"), updateUserAvatar);
 router.route("/delete-user").delete(verifyJWT, deleteUser);
 
 export default router;
