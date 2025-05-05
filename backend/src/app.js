@@ -1,13 +1,17 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import fs from "fs/promises";
-import path from "path";
 import swaggerUi from "swagger-ui-express";
+import { createRequire } from "module";
+import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Create a require function for loading JSON
+const require = createRequire(import.meta.url);
+const swaggerDocument = require("./swagger-output.json");
 
 import { errorHandler } from "./middleware/errorHandler.js";
 import { upload } from "./middleware/multerMiddleware.js";
@@ -20,12 +24,32 @@ import userRouter from "./routes/userRoutes.js";
 
 const app = express();
 
+// CORS configuration
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        "http://localhost:3000", // Next.js frontend
+        "https://your-frontend-vercel-app.vercel.app", // Replace with your frontend production URL
+        "http://localhost:8000", // Backend local for testing
+      ];
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, origin);
+      } else {
+        callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    maxAge: 86400,
   })
 );
+app.options("*", cors());
+
+// Serve Swagger UI static files
+app.use("/swagger-ui", express.static(path.join(__dirname, "../node_modules/swagger-ui-dist")));
+
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
@@ -51,15 +75,7 @@ app.get("/", (req, res) => {
   res.send("Hello from Express server with mahdi!!");
 });
 
-// Load and serve Swagger UI
-try {
-  const swaggerDocument = JSON.parse(
-    await fs.readFile(path.join(__dirname, "swagger-output.json"), "utf-8")
-  );
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-} catch (error) {
-  console.error("Error loading Swagger UI:", error);
-}
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(errorHandler);
 
