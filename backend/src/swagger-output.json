@@ -5,7 +5,7 @@
     "description": "API for BlogSphere with posts, comments, likes, and user management",
     "version": "1.0.0"
   },
-  "host": "localhost:8000",
+  "host": "blog-sphere-backend-ruby.vercel.app",
   "basePath": "/api/v1",
   "schemes": [
     "http"
