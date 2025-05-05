@@ -13,7 +13,6 @@ import {
   verifyAccount,
 } from "../controllers/authController.js";
 import { verifyJWT } from "../middleware/authMiddleware.js";
-import { upload } from "../middleware/multerMiddleware.js";
 
 const router = Router();
 
@@ -24,14 +23,12 @@ router.route("/resend-otp").post(resendOtp);
 router.route("/login").post(login);
 router.route("/forget-password").post(forgetPassword);
 router.route("/reset-password").post(resetPassword);
+router.route("/refresh-token").post(refreshAccessToken);
 
 // Protected routes
 router.route("/logout").post(verifyJWT, logout);
-router.route("/refresh-token").post(refreshAccessToken);
 router.route("/update-user").patch(verifyJWT, updateUserInfo);
-router
-  .route("/update-avatar")
-  .patch(verifyJWT, upload.single("avatar"), updateUserAvatar);
+router.route("/update-avatar").patch(verifyJWT, updateUserAvatar);
 router.route("/delete-user").delete(verifyJWT, deleteUser);
 
 export default router;
