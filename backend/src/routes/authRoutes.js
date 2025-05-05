@@ -1,4 +1,3 @@
-// routes/auth.routes.js
 import { Router } from "express";
 import {
   deleteUser,
@@ -9,8 +8,6 @@ import {
   resendOtp,
   resetPassword,
   signup,
-  updateUserAvatar,
-  updateUserInfo,
   verifyAccount,
 } from "../controllers/authController.js";
 import { verifyJWT } from "../middleware/authMiddleware.js";
