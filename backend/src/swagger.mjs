@@ -3,7 +3,7 @@ import swaggerAutogen from "swagger-autogen";
 // Dynamically set host based on NODE_ENV
 const host =
   process.env.NODE_ENV === "production"
-    ? "https://blog-sphere-backend-ruby.vercel.app"
+    ? "blog-sphere-backend-ruby.vercel.app"
     : "localhost:8000";
 
 const doc = {
@@ -438,7 +438,7 @@ const doc = {
         },
       },
     },
-    "/admin/suspension/user/{userId}": {
+    "/admin/suspension/user/:userId": {
       patch: {
         tags: ["Admin"],
         summary: "Toggle user suspension",
@@ -448,7 +448,7 @@ const doc = {
             in: "path",
             name: "userId",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the user",
           },
         ],
@@ -466,7 +466,7 @@ const doc = {
         },
       },
     },
-    "/admin/suspension/post/{postId}": {
+    "/admin/suspension/post/:postId": {
       patch: {
         tags: ["Admin"],
         summary: "Toggle post suspension",
@@ -476,7 +476,7 @@ const doc = {
             in: "path",
             name: "postId",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the post",
           },
         ],
@@ -494,7 +494,7 @@ const doc = {
         },
       },
     },
-    "/admin/suspension/comment/{commentId}": {
+    "/admin/suspension/comment/:commentId": {
       patch: {
         tags: ["Admin"],
         summary: "Toggle comment suspension",
@@ -504,7 +504,7 @@ const doc = {
             in: "path",
             name: "commentId",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the comment",
           },
         ],
@@ -531,19 +531,19 @@ const doc = {
           {
             in: "query",
             name: "query",
-            type: "string",
+            schema: { type: "string" },
             description: "Search by name, email, or username",
           },
           {
             in: "query",
             name: "page",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Page number",
           },
           {
             in: "query",
             name: "limit",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Number of items per page",
           },
         ],
@@ -569,19 +569,19 @@ const doc = {
           {
             in: "query",
             name: "search",
-            type: "string",
+            schema: { type: "string" },
             description: "Search by post title",
           },
           {
             in: "query",
             name: "page",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Page number",
           },
           {
             in: "query",
             name: "limit",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Number of items per page",
           },
         ],
@@ -607,19 +607,19 @@ const doc = {
           {
             in: "query",
             name: "query",
-            type: "string",
+            schema: { type: "string" },
             description: "Search by comment content",
           },
           {
             in: "query",
             name: "page",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Page number",
           },
           {
             in: "query",
             name: "limit",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Number of items per page",
           },
         ],
@@ -739,7 +739,7 @@ const doc = {
         },
       },
     },
-    "/comments/{commentId}": {
+    "/comments/:commentId": {
       delete: {
         tags: ["Comments"],
         summary: "Delete a comment and its replies",
@@ -749,7 +749,7 @@ const doc = {
             in: "path",
             name: "commentId",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the comment",
           },
         ],
@@ -768,7 +768,7 @@ const doc = {
         },
       },
     },
-    "/comments/post/{postId}": {
+    "/comments/post/:postId": {
       get: {
         tags: ["Comments"],
         summary: "Get comments for a post",
@@ -777,7 +777,7 @@ const doc = {
             in: "path",
             name: "postId",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the post",
           },
         ],
@@ -890,19 +890,19 @@ const doc = {
           {
             in: "query",
             name: "page",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Page number",
           },
           {
             in: "query",
             name: "limit",
-            type: "integer",
+            schema: { type: "integer" },
             description: "Number of items per page",
           },
           {
             in: "query",
             name: "search",
-            type: "string",
+            schema: { type: "string" },
             description: "Search by post title",
           },
         ],
@@ -918,7 +918,7 @@ const doc = {
         },
       },
     },
-    "/posts/{id}": {
+    "/posts/:id": {
       patch: {
         tags: ["Posts"],
         summary: "Update a post",
@@ -928,7 +928,7 @@ const doc = {
             in: "path",
             name: "id",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the post",
           },
         ],
@@ -973,7 +973,7 @@ const doc = {
             in: "path",
             name: "id",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the post",
           },
         ],
@@ -998,7 +998,7 @@ const doc = {
             in: "path",
             name: "id",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "ID of the post",
           },
         ],
@@ -1024,7 +1024,7 @@ const doc = {
           {
             in: "query",
             name: "search",
-            type: "string",
+            schema: { type: "string" },
             description: "Search by post title",
           },
         ],
@@ -1040,7 +1040,7 @@ const doc = {
         },
       },
     },
-    "/users/{userName}": {
+    "/users/:userName": {
       get: {
         tags: ["Users"],
         summary: "Get a single user and their posts",
@@ -1049,7 +1049,7 @@ const doc = {
             in: "path",
             name: "userName",
             required: true,
-            type: "string",
+            schema: { type: "string" },
             description: "Username of the user",
           },
         ],
@@ -1074,7 +1074,7 @@ const doc = {
           {
             in: "query",
             name: "query",
-            type: "string",
+            schema: { type: "string" },
             description: "Search by name, email, or username",
           },
         ],
