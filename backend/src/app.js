@@ -1,9 +1,9 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import swaggerUi from "swagger-ui-express";
 import { createRequire } from "module";
 import path from "path";
+import swaggerUi from "swagger-ui-express";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,14 +25,17 @@ import userRouter from "./routes/userRoutes.js";
 const app = express();
 
 // CORS configuration
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",")
+  : [
+      "http://localhost:3000",
+      "http://localhost:8000",
+      "https://blog-sphere-backend-ruby.vercel.app",
+    ];
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowedOrigins = [
-        "http://localhost:3000", // Next.js frontend
-        "https://your-frontend-vercel-app.vercel.app", // Replace with your frontend production URL
-        "http://localhost:8000", // Backend local for testing
-      ];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, origin);
       } else {
@@ -48,8 +51,12 @@ app.use(
 app.options("*", cors());
 
 // Serve Swagger UI static files
-app.use("/swagger-ui", express.static(path.join(__dirname, "../node_modules/swagger-ui-dist")));
+app.use(
+  "/swagger-ui",
+  express.static(path.join(__dirname, "../node_modules/swagger-ui-dist"))
+);
 
+// Middleware
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
@@ -64,6 +71,7 @@ app.use((req, res, next) => {
   }
 });
 
+// Routes
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/users", userRouter);
@@ -71,12 +79,15 @@ app.use("/api/v1/posts", postRouter);
 app.use("/api/v1/comments", commentRouter);
 app.use("/api/v1/likes", likeRouter);
 
+// Root route
 app.get("/", (req, res) => {
   res.send("Hello from Express server with mahdi!!");
 });
 
+// Swagger UI
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
+// Error handler
 app.use(errorHandler);
 
 export { app };
