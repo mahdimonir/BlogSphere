@@ -4,7 +4,10 @@ import express from "express";
 import fs from "fs/promises";
 import path from "path";
 import swaggerUi from "swagger-ui-express";
-import swaggerDocument from "./swagger-output.json" assert { type: "json" };
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import { errorHandler } from "./middleware/errorHandler.js";
 import { upload } from "./middleware/multerMiddleware.js";
