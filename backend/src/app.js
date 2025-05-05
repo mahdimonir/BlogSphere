@@ -20,43 +20,18 @@ import userRouter from "./routes/userRoutes.js";
 
 const app = express();
 
-// Define allowed origins
-const allowedOrigins = [
-  process.env.LOCAL_ORIGIN,
-  process.env.PRODUCTION_ORIGIN,
-];
-
-// CORS configuration
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (e.g., Postman, curl)
-      if (!origin) return callback(null, true);
-
-      // Check if the origin is in the allowed list
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
-// Serve Swagger UI static files
-app.use(
-  "/swagger-ui",
-  express.static(path.join(__dirname, "../node_modules/swagger-ui-dist"))
-);
-
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.use(cookieParser());
 
+// Apply Multer for multipart/form-data requests
 app.use((req, res, next) => {
   if (req.is("multipart/form-data")) {
     upload(req, res, next);
@@ -76,38 +51,14 @@ app.get("/", (req, res) => {
   res.send("Hello from Express server with mahdi!!");
 });
 
-// Debug route for swagger-output.json
-app.get("/debug-swagger-json", async (req, res) => {
-  try {
-    const swaggerDocument = JSON.parse(
-      await fs.readFile(path.join(__dirname, "swagger-output.json"), "utf-8")
-    );
-    res.json(swaggerDocument);
-  } catch (error) {
-    res
-      .status(500)
-      .json({
-        error: "Failed to load swagger-output.json",
-        details: error.message,
-      });
-  }
-});
-
+// Load and serve Swagger UI
 try {
   const swaggerDocument = JSON.parse(
     await fs.readFile(path.join(__dirname, "swagger-output.json"), "utf-8")
   );
-  console.log("Swagger document loaded:", Object.keys(swaggerDocument));
-  app.use(
-    "/api-docs",
-    (req, res, next) => {
-      console.log("Serving /api-docs");
-      swaggerUi.serve(req, res, next);
-    },
-    swaggerUi.setup(swaggerDocument)
-  );
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 } catch (error) {
-  console.error("Error setting up Swagger UI:", error);
+  console.error("Error loading Swagger UI:", error);
 }
 
 app.use(errorHandler);

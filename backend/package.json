@@ -9,6 +9,9 @@
     "build": "npm run auth-docs",
     "auth-docs": "node src/swagger.mjs"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mahdimonir/BlogSphere.git"

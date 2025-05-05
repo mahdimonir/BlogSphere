@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
-import GoogleButton from "../../shared/components/google-button/index.jsx";
+import GoogleButton from "../../assets/google-button/index.jsx";
 
 const Signup = () => {
   const [passwordVisible, setPasswordVisible] = useState(false);
