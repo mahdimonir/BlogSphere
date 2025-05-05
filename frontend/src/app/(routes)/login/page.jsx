@@ -1,5 +1,6 @@
 "use client";
 
+import GoogleButton from "@/app/assets/google-button/index.jsx";
 import { API_URL } from "@/server.js";
 import axios from "axios";
 import { Eye, EyeOff } from "lucide-react";
@@ -8,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
-import GoogleButton from "../../shared/components/google-button/index.jsx";
 
 export default function LoginPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);

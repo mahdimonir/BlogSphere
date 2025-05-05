@@ -19,14 +19,14 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-    return (
-        <html lang="en">
-            <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-            >
-                <AuthProvider>{children}</AuthProvider>
-                <Toaster position="top-center" /> {/* 🛑 ADD THIS */}
-            </body>
-        </html>
-    );
+  return (
+    <html lang="en" className="dark">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <AuthProvider>{children}</AuthProvider>
+        <Toaster position="top-center" />
+      </body>
+    </html>
+  );
 }
