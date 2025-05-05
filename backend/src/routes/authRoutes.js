@@ -10,7 +10,7 @@ import {
   signup,
   verifyAccount,
 } from "../controllers/authController.js";
-import { verifyJWT } from "../middleware/authMiddleware.js";
+import { authorized, verifyJWT } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
@@ -22,7 +22,7 @@ router.route("/logout").post(verifyJWT, logout);
 router.route("/refresh-token").post(refreshAccessToken);
 router.route("/forget-password").post(forgetPassword);
 router.route("/reset-password").post(resetPassword);
-router.route("/update").put(isAuthenticated, updateUser);
-router.route("/delece").delete(isAuthenticated, deleteUser);
+router.route("/update").put(authorized, updateUser);
+router.route("/delece").delete(authorized, deleteUser);
 
 export default router;
