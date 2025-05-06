@@ -3,10 +3,7 @@
   "builds": [
     {
       "src": "src/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["src/**", "public/**", "node_modules/**"]
-      }
+      "use": "@vercel/node"
     },
     {
       "src": "src/**/*",
@@ -23,9 +20,5 @@
       }
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "buildCommand": "rm -f src/swagger-output.json && npm run auth-docs",
   "installCommand": "npm install --legacy-peer-deps"
 }
