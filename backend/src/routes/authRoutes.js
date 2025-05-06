@@ -8,21 +8,27 @@ import {
   resendOtp,
   resetPassword,
   signup,
+  updateUserAvatar,
+  updateUserInfo,
   verifyAccount,
 } from "../controllers/authController.js";
-import { authorized, verifyJWT } from "../middleware/authMiddleware.js";
+import { verifyJWT } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
+// Public routes
 router.route("/signup").post(signup);
 router.route("/verify").post(verifyAccount);
 router.route("/resend-otp").post(resendOtp);
 router.route("/login").post(login);
-router.route("/logout").post(verifyJWT, logout);
-router.route("/refresh-token").post(refreshAccessToken);
 router.route("/forget-password").post(forgetPassword);
 router.route("/reset-password").post(resetPassword);
-router.route("/update").put(authorized, updateUser);
-router.route("/delece").delete(authorized, deleteUser);
+router.route("/refresh-token").post(refreshAccessToken);
+
+// Protected routes
+router.route("/logout").post(verifyJWT, logout);
+router.route("/update-user").patch(verifyJWT, updateUserInfo);
+router.route("/update-avatar").patch(verifyJWT, updateUserAvatar);
+router.route("/delete-user").delete(verifyJWT, deleteUser);
 
 export default router;

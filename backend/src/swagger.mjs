@@ -1,363 +1,92 @@
+import fs from "fs";
+import path from "path";
 import swaggerAutogen from "swagger-autogen";
 
-// Dynamically set host based on NODE_ENV
-const host =
-  process.env.NODE_ENV === "production"
-    ? "https://blog-sphere-backend-ruby.vercel.app"
-    : "localhost:8000";
+const swaggerAutogenInstance = swaggerAutogen();
+const outputFile = "./src/swagger-output.json";
+const endpointsFiles = ["./src/app.js"];
+
+// Validate endpointsFiles
+endpointsFiles.forEach((file) => {
+  const filePath = path.resolve(file);
+  if (!fs.existsSync(filePath)) {
+    console.warn(
+      `Warning: File ${filePath} does not exist. Creating a dummy file.`
+    );
+    fs.writeFileSync(filePath, "// Dummy file for swagger-autogen\n");
+  }
+});
 
 const doc = {
+  openapi: "3.0.0",
   info: {
     title: "BlogSphere API",
-    description:
-      "API for BlogSphere with posts, comments, likes, and user management",
+    description: "API Documentation for BlogSphere application",
     version: "1.0.0",
   },
-  host: host,
+  host:
+    process.env.NODE_ENV === "production"
+      ? "blog-sphere-backend-ruby.vercel.app"
+      : "localhost:8000",
+  schemes: [process.env.NODE_ENV === "production" ? "https" : "http"],
   basePath: "/api/v1",
-  schemes: process.env.NODE_ENV === "production" ? ["https"] : ["http"],
+  consumes: ["application/json", "multipart/form-data"],
+  produces: ["application/json"],
   securityDefinitions: {
     BearerAuth: {
       type: "apiKey",
       name: "Authorization",
       in: "header",
-      description: "Enter JWT token in format: Bearer <token>",
+      description: "Enter token in format: Bearer <token>",
     },
   },
   definitions: {
     ApiResponse: {
-      status: { type: "number", example: 200 },
+      status: { type: "integer", example: 200 },
       data: { type: "object" },
       message: { type: "string", example: "Operation successful" },
     },
     User: {
-      _id: { type: "string" },
-      name: { type: "string" },
-      email: { type: "string" },
-      userName: { type: "string" },
-      avatar: { type: "string", nullable: true },
-      isVerified: { type: "boolean" },
-      isSuspended: { type: "boolean" },
-      createdAt: { type: "string", format: "date-time" },
+      _id: { type: "string", example: "60d21b4667d0d8992e610c84" },
+      name: { type: "string", example: "John Doe" },
+      email: { type: "string", example: "john@example.com" },
+      userName: { type: "string", example: "johndoe" },
+      avatar: { type: "string", example: "https://example.com/avatar.png" },
+      role: { type: "string", example: "user" },
     },
     Post: {
-      _id: { type: "string" },
-      title: { type: "string" },
-      content: { type: "string" },
-      image: { type: "string", nullable: true },
-      catagory: { type: "string" },
-      tags: { type: "array", items: { type: "string" } },
-      status: { type: "string" },
-      createdAt: { type: "string", format: "date-time" },
-      author: {
-        _id: { type: "string" },
-        userName: { type: "string" },
-      },
-      likeCount: { type: "number" },
-      commentCount: { type: "number" },
-      comments: {
+      _id: { type: "string", example: "60d21b4667d0d8992e610c85" },
+      title: { type: "string", example: "My First Post" },
+      content: { type: "string", example: "This is the content of my post." },
+      author: { $ref: "#/definitions/User" },
+      image: { type: "string", example: "https://example.com/image.png" },
+      catagory: { type: "string", example: "Tech" },
+      tags: {
         type: "array",
-        items: { $ref: "#/definitions/Comment" },
+        items: { type: "string" },
+        example: ["tech", "blog"],
       },
-      likes: {
-        type: "array",
-        items: {
-          likedBy: {
-            _id: { type: "string" },
-            userName: { type: "string" },
-          },
-        },
-      },
+      contentTable: { type: "string", example: "Table of contents" },
     },
     Comment: {
-      _id: { type: "string" },
-      content: { type: "string" },
-      post: { type: "string" },
-      parentComment: { type: "string", nullable: true },
-      author: {
-        _id: { type: "string" },
-        userName: { type: "string" },
-      },
-      createdAt: { type: "string", format: "date-time" },
-      replies: {
-        type: "array",
-        items: { $ref: "#/definitions/Comment" },
-      },
-      likeCount: { type: "number" },
-      likes: {
-        type: "array",
-        items: {
-          likedBy: {
-            _id: { type: "string" },
-            userName: { type: "string" },
-          },
-        },
-      },
-    },
-    Like: {
-      _id: { type: "string" },
-      likedBy: {
-        _id: { type: "string" },
-        userName: { type: "string" },
-      },
-      post: { type: "string", nullable: true },
-      comment: { type: "string", nullable: true },
+      _id: { type: "string", example: "60d21b4667d0d8992e610c86" },
+      content: { type: "string", example: "Great post!" },
+      author: { $ref: "#/definitions/User" },
+      postId: { type: "string", example: "60d21b4667d0d8992e610c85" },
+      parentCommentId: { type: "string", example: null },
+      depth: { type: "integer", example: 0 },
     },
   },
   paths: {
-    "/auth/signup": {
-      post: {
-        tags: ["Auth"],
-        summary: "Sign up a new user",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  email: { type: "string" },
-                  password: { type: "string" },
-                },
-                required: ["name", "email", "password"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "OTP sent successfully",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          409: { description: "User already exists" },
-          500: { description: "Server error" },
-        },
-      },
-    },
-    "/auth/verify": {
-      post: {
-        tags: ["Auth"],
-        summary: "Verify user account with OTP",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string" },
-                  otp: { type: "string" },
-                },
-                required: ["email", "otp"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Email verified",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid OTP or already verified" },
-          404: { description: "User not found" },
-        },
-      },
-    },
-    "/auth/resend-otp": {
-      post: {
-        tags: ["Auth"],
-        summary: "Resend OTP for email verification",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string" },
-                },
-                required: ["email"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "New OTP sent",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Already verified" },
-          404: { description: "User not found" },
-        },
-      },
-    },
-    "/auth/login": {
-      post: {
-        tags: ["Auth"],
-        summary: "Log in a user",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string" },
-                  userName: { type: "string" },
-                  password: { type: "string" },
-                  rememberMe: { type: "boolean" },
-                },
-                required: ["password"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "User logged in",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          401: { description: "Invalid credentials" },
-          403: { description: "Email not verified" },
-        },
-      },
-    },
-    "/auth/logout": {
-      post: {
-        tags: ["Auth"],
-        summary: "Log out a user",
-        security: [{ BearerAuth: [] }],
-        responses: {
-          200: {
-            description: "User logged out",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/auth/refresh-token": {
-      post: {
-        tags: ["Auth"],
-        summary: "Refresh access token",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  refreshToken: { type: "string" },
-                },
-                required: ["refreshToken"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Token refreshed",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          401: { description: "Invalid or expired refresh token" },
-        },
-      },
-    },
-    "/auth/forget-password": {
-      post: {
-        tags: ["Auth"],
-        summary: "Request password reset OTP",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string" },
-                },
-                required: ["email"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Password reset OTP sent",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          404: { description: "User not found" },
-          429: { description: "Rate limit exceeded" },
-        },
-      },
-    },
-    "/auth/reset-password": {
-      post: {
-        tags: ["Auth"],
-        summary: "Reset password with OTP",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string" },
-                  otp: { type: "string" },
-                  password: { type: "string" },
-                },
-                required: ["email", "otp", "password"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Password reset",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid password" },
-          404: { description: "Invalid or expired OTP" },
-        },
-      },
-    },
     "/auth/update-user": {
       patch: {
         tags: ["Auth"],
         summary: "Update user information",
+        description:
+          "Updates the authenticated user’s profile details (name, email, or username). At least one field must be provided.",
         security: [{ BearerAuth: [] }],
+        consumes: ["application/json"],
+        produces: ["application/json"],
         requestBody: {
           required: true,
           content: {
@@ -365,9 +94,17 @@ const doc = {
               schema: {
                 type: "object",
                 properties: {
-                  name: { type: "string" },
-                  email: { type: "string" },
-                  userName: { type: "string" },
+                  name: { type: "string", description: "User's full name" },
+                  email: {
+                    type: "string",
+                    description: "User's email address",
+                  },
+                  userName: { type: "string", description: "User's username" },
+                },
+                example: {
+                  name: "John Doe",
+                  email: "john.doe@example.com",
+                  userName: "johndoe",
                 },
               },
             },
@@ -375,15 +112,17 @@ const doc = {
         },
         responses: {
           200: {
-            description: "Profile updated",
+            description: "Profile updated successfully",
             content: {
               "application/json": {
                 schema: { $ref: "#/definitions/ApiResponse" },
               },
             },
           },
-          400: { description: "Invalid input" },
+          400: { description: "Invalid input or no fields provided" },
+          409: { description: "Email or username already taken" },
           404: { description: "User not found" },
+          401: { description: "Unauthorized" },
         },
       },
     },
@@ -391,7 +130,10 @@ const doc = {
       patch: {
         tags: ["Auth"],
         summary: "Update user avatar",
+        description: "Updates the authenticated user’s avatar image.",
         security: [{ BearerAuth: [] }],
+        consumes: ["multipart/form-data"],
+        produces: ["application/json"],
         requestBody: {
           required: true,
           content: {
@@ -399,7 +141,11 @@ const doc = {
               schema: {
                 type: "object",
                 properties: {
-                  avatar: { type: "string", format: "binary" },
+                  avatar: {
+                    type: "string",
+                    format: "binary",
+                    description: "Avatar image file (e.g., PNG, JPEG)",
+                  },
                 },
                 required: ["avatar"],
               },
@@ -408,231 +154,81 @@ const doc = {
         },
         responses: {
           200: {
-            description: "Avatar updated",
+            description: "Avatar updated successfully",
             content: {
               "application/json": {
                 schema: { $ref: "#/definitions/ApiResponse" },
               },
             },
           },
-          400: { description: "Avatar missing or upload failed" },
+          400: { description: "Avatar missing or invalid file type" },
           404: { description: "User not found" },
+          401: { description: "Unauthorized" },
         },
       },
     },
-    "/auth/delete-user": {
-      delete: {
-        tags: ["Auth"],
-        summary: "Delete user account",
+    "/posts": {
+      post: {
+        tags: ["Posts"],
+        summary: "Create a new post",
+        description:
+          "Creates a new post with optional image upload. Requires authentication.",
         security: [{ BearerAuth: [] }],
+        consumes: ["multipart/form-data"],
+        produces: ["application/json"],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "Title of the post" },
+                  content: {
+                    type: "string",
+                    description: "Content of the post",
+                  },
+                  catagory: {
+                    type: "string",
+                    description: "Category of the post",
+                  },
+                  tags: { type: "string", description: "Comma-separated tags" },
+                  contentTable: {
+                    type: "string",
+                    description: "Content table for the post",
+                  },
+                  image: {
+                    type: "string",
+                    format: "binary",
+                    description: "Optional post image (e.g., PNG, JPEG)",
+                  },
+                },
+                required: ["title", "content"],
+                example: {
+                  title: "My First Post",
+                  content: "This is the content of my post.",
+                  catagory: "Tech",
+                  tags: "tech, blog",
+                  contentTable: "Table of contents",
+                },
+              },
+            },
+          },
+        },
         responses: {
-          200: {
-            description: "User deleted",
+          201: {
+            description: "Post created successfully",
             content: {
               "application/json": {
                 schema: { $ref: "#/definitions/ApiResponse" },
               },
             },
           },
-          404: { description: "User not found" },
-        },
-      },
-    },
-    "/admin/suspension/user/{userId}": {
-      patch: {
-        tags: ["Admin"],
-        summary: "Toggle user suspension",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "path",
-            name: "userId",
-            required: true,
-            type: "string",
-            description: "ID of the user",
+          400: {
+            description: "Invalid input (e.g., missing title or content)",
           },
-        ],
-        responses: {
-          200: {
-            description: "User suspension toggled",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid user ID" },
-          404: { description: "User not found" },
-        },
-      },
-    },
-    "/admin/suspension/post/{postId}": {
-      patch: {
-        tags: ["Admin"],
-        summary: "Toggle post suspension",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "path",
-            name: "postId",
-            required: true,
-            type: "string",
-            description: "ID of the post",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Post suspension toggled",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid post ID" },
-          404: { description: "Post not found" },
-        },
-      },
-    },
-    "/admin/suspension/comment/{commentId}": {
-      patch: {
-        tags: ["Admin"],
-        summary: "Toggle comment suspension",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "path",
-            name: "commentId",
-            required: true,
-            type: "string",
-            description: "ID of the comment",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Comment suspension toggled",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid comment ID" },
-          404: { description: "Comment not found" },
-        },
-      },
-    },
-    "/admin/suspend/users": {
-      get: {
-        tags: ["Admin"],
-        summary: "Get suspended users",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "query",
-            name: "query",
-            type: "string",
-            description: "Search by name, email, or username",
-          },
-          {
-            in: "query",
-            name: "page",
-            type: "integer",
-            description: "Page number",
-          },
-          {
-            in: "query",
-            name: "limit",
-            type: "integer",
-            description: "Number of items per page",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Suspended users fetched",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          500: { description: "Failed to paginate" },
-        },
-      },
-    },
-    "/admin/suspend/posts": {
-      get: {
-        tags: ["Admin"],
-        summary: "Get suspended posts",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "query",
-            name: "search",
-            type: "string",
-            description: "Search by post title",
-          },
-          {
-            in: "query",
-            name: "page",
-            type: "integer",
-            description: "Page number",
-          },
-          {
-            in: "query",
-            name: "limit",
-            type: "integer",
-            description: "Number of items per page",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Suspended posts fetched",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          500: { description: "Failed to paginate" },
-        },
-      },
-    },
-    "/admin/suspend/comments": {
-      get: {
-        tags: ["Admin"],
-        summary: "Get suspended comments",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "query",
-            name: "query",
-            type: "string",
-            description: "Search by comment content",
-          },
-          {
-            in: "query",
-            name: "page",
-            type: "integer",
-            description: "Page number",
-          },
-          {
-            in: "query",
-            name: "limit",
-            type: "integer",
-            description: "Number of items per page",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Suspended comments fetched",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          500: { description: "Failed to paginate" },
+          401: { description: "Unauthorized" },
+          500: { description: "Image upload failed" },
         },
       },
     },
@@ -640,7 +236,10 @@ const doc = {
       post: {
         tags: ["Comments"],
         summary: "Create a top-level comment",
+        description: "Creates a new top-level comment on a post.",
         security: [{ BearerAuth: [] }],
+        consumes: ["application/json"],
+        produces: ["application/json"],
         requestBody: {
           required: true,
           content: {
@@ -648,33 +247,50 @@ const doc = {
               schema: {
                 type: "object",
                 properties: {
-                  postId: { type: "string" },
-                  content: { type: "string" },
+                  postId: {
+                    type: "string",
+                    description: "ID of the post to comment on",
+                  },
+                  content: {
+                    type: "string",
+                    description: "Content of the comment",
+                  },
                 },
                 required: ["postId", "content"],
+                example: {
+                  postId: "60d21b4667d0d8992e610c85",
+                  content: "Great post!",
+                },
               },
             },
           },
         },
         responses: {
           201: {
-            description: "Comment created",
+            description: "Comment created successfully",
             content: {
               "application/json": {
                 schema: { $ref: "#/definitions/ApiResponse" },
               },
             },
           },
-          400: { description: "Invalid input" },
+          400: {
+            description: "Invalid input (e.g., missing postId or content)",
+          },
           404: { description: "Post not found" },
+          401: { description: "Unauthorized" },
         },
       },
     },
-    "/comments/reply": {
+    "/comments/replies": {
       post: {
         tags: ["Comments"],
         summary: "Create a nested comment (reply)",
+        description:
+          "Creates a nested comment as a reply to an existing comment (max depth: 5).",
         security: [{ BearerAuth: [] }],
+        consumes: ["application/json"],
+        produces: ["application/json"],
         requestBody: {
           required: true,
           content: {
@@ -682,17 +298,27 @@ const doc = {
               schema: {
                 type: "object",
                 properties: {
-                  parentCommentId: { type: "string" },
-                  content: { type: "string" },
+                  parentCommentId: {
+                    type: "string",
+                    description: "ID of the parent comment",
+                  },
+                  content: {
+                    type: "string",
+                    description: "Content of the reply",
+                  },
                 },
                 required: ["parentCommentId", "content"],
+                example: {
+                  parentCommentId: "60d21b4667d0d8992e610c86",
+                  content: "Thanks for the insight!",
+                },
               },
             },
           },
         },
         responses: {
           201: {
-            description: "Reply created",
+            description: "Reply created successfully",
             content: {
               "application/json": {
                 schema: { $ref: "#/definitions/ApiResponse" },
@@ -701,425 +327,75 @@ const doc = {
           },
           400: { description: "Invalid input or max depth exceeded" },
           404: { description: "Parent comment or post not found" },
-        },
-      },
-    },
-    "/comments/update": {
-      patch: {
-        tags: ["Comments"],
-        summary: "Update a comment",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  commentId: { type: "string" },
-                  content: { type: "string" },
-                },
-                required: ["commentId", "content"],
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Comment updated",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid input" },
-          403: { description: "Unauthorized" },
-          404: { description: "Comment not found" },
+          401: { description: "Unauthorized" },
         },
       },
     },
     "/comments/{commentId}": {
-      delete: {
+      patch: {
         tags: ["Comments"],
-        summary: "Delete a comment and its replies",
+        summary: "Update a comment",
+        description: "Updates the content of an existing comment.",
         security: [{ BearerAuth: [] }],
+        consumes: ["application/json"],
+        produces: ["application/json"],
         parameters: [
           {
             in: "path",
             name: "commentId",
+            description: "ID of the comment to update",
             required: true,
-            type: "string",
-            description: "ID of the comment",
+            schema: { type: "string" },
           },
         ],
-        responses: {
-          200: {
-            description: "Comment deleted",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid comment ID" },
-          403: { description: "Unauthorized" },
-          404: { description: "Comment not found" },
-        },
-      },
-    },
-    "/comments/post/{postId}": {
-      get: {
-        tags: ["Comments"],
-        summary: "Get comments for a post",
-        parameters: [
-          {
-            in: "path",
-            name: "postId",
-            required: true,
-            type: "string",
-            description: "ID of the post",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Comments fetched",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          404: { description: "Post not found" },
-        },
-      },
-    },
-    "/likes/toggle": {
-      patch: {
-        tags: ["Likes"],
-        summary: "Toggle like on a post or comment",
-        security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
             "application/json": {
               schema: {
-                oneOf: [
-                  {
-                    type: "object",
-                    properties: {
-                      postId: { type: "string" },
-                    },
-                    required: ["postId"],
-                  },
-                  {
-                    type: "object",
-                    properties: {
-                      commentId: { type: "string" },
-                    },
-                    required: ["commentId"],
-                  },
-                ],
-              },
-            },
-          },
-        },
-        responses: {
-          201: {
-            description: "Like added",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          200: {
-            description: "Like removed",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid input" },
-          404: { description: "Resource not found" },
-        },
-      },
-    },
-    "/posts": {
-      post: {
-        tags: ["Posts"],
-        summary: "Create a new post",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "multipart/form-data": {
-              schema: {
                 type: "object",
                 properties: {
-                  title: { type: "string" },
-                  content: { type: "string" },
-                  catagory: { type: "string" },
-                  tags: { type: "string" },
-                  contentTable: { type: "string" },
-                  image: { type: "string", format: "binary" },
+                  content: {
+                    type: "string",
+                    description: "Updated content of the comment",
+                  },
                 },
-                required: ["title", "content"],
+                required: ["content"],
+                example: {
+                  content: "Updated comment content",
+                },
               },
             },
           },
         },
         responses: {
-          201: {
-            description: "Post created",
+          200: {
+            description: "Comment updated successfully",
             content: {
               "application/json": {
                 schema: { $ref: "#/definitions/ApiResponse" },
               },
             },
           },
-          400: { description: "Invalid input or image upload failed" },
+          400: { description: "Invalid input (e.g., missing content)" },
+          403: { description: "Unauthorized (not comment owner)" },
+          404: { description: "Comment not found" },
           401: { description: "Unauthorized" },
-        },
-      },
-      get: {
-        tags: ["Posts"],
-        summary: "Get all posts",
-        parameters: [
-          {
-            in: "query",
-            name: "page",
-            type: "integer",
-            description: "Page number",
-          },
-          {
-            in: "query",
-            name: "limit",
-            type: "integer",
-            description: "Number of items per page",
-          },
-          {
-            in: "query",
-            name: "search",
-            type: "string",
-            description: "Search by post title",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Posts retrieved",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/posts/{id}": {
-      patch: {
-        tags: ["Posts"],
-        summary: "Update a post",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "path",
-            name: "id",
-            required: true,
-            type: "string",
-            description: "ID of the post",
-          },
-        ],
-        requestBody: {
-          required: false,
-          content: {
-            "multipart/form-data": {
-              schema: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  content: { type: "string" },
-                  catagory: { type: "string" },
-                  tags: { type: "string" },
-                  contentTable: { type: "string" },
-                  image: { type: "string", format: "binary" },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Post updated",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          400: { description: "Invalid input or image upload failed" },
-          403: { description: "Unauthorized" },
-          404: { description: "Post not found" },
-        },
-      },
-      delete: {
-        tags: ["Posts"],
-        summary: "Delete a post",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "path",
-            name: "id",
-            required: true,
-            type: "string",
-            description: "ID of the post",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Post deleted",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          403: { description: "Unauthorized" },
-          404: { description: "Post not found" },
-        },
-      },
-      get: {
-        tags: ["Posts"],
-        summary: "Get a single post",
-        parameters: [
-          {
-            in: "path",
-            name: "id",
-            required: true,
-            type: "string",
-            description: "ID of the post",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Post retrieved",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          404: { description: "Post not found" },
-        },
-      },
-    },
-    "/posts/my-posts": {
-      get: {
-        tags: ["Posts"],
-        summary: "Get authenticated user's posts",
-        security: [{ BearerAuth: [] }],
-        parameters: [
-          {
-            in: "query",
-            name: "search",
-            type: "string",
-            description: "Search by post title",
-          },
-        ],
-        responses: {
-          200: {
-            description: "User's posts retrieved",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/users/{userName}": {
-      get: {
-        tags: ["Users"],
-        summary: "Get a single user and their posts",
-        parameters: [
-          {
-            in: "path",
-            name: "userName",
-            required: true,
-            type: "string",
-            description: "Username of the user",
-          },
-        ],
-        responses: {
-          200: {
-            description: "User and posts fetched",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          404: { description: "User not found" },
-        },
-      },
-    },
-    "/users": {
-      get: {
-        tags: ["Users"],
-        summary: "Get all users and their posts",
-        parameters: [
-          {
-            in: "query",
-            name: "query",
-            type: "string",
-            description: "Search by name, email, or username",
-          },
-        ],
-        responses: {
-          200: {
-            description: "Users and posts fetched",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          404: { description: "No users found" },
-        },
-      },
-    },
-    "/users/profile": {
-      get: {
-        tags: ["Users"],
-        summary: "Get authenticated user's profile",
-        security: [{ BearerAuth: [] }],
-        responses: {
-          200: {
-            description: "Profile and posts retrieved",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/definitions/ApiResponse" },
-              },
-            },
-          },
-          404: { description: "User not found" },
         },
       },
     },
   },
 };
 
-const outputFile = "./src/swagger-output.json";
-const endpointsFiles = [
-  "./src/routes/authRoutes.js",
-  "./src/routes/adminRoutes.js",
-  "./src/routes/userRoutes.js",
-  "./src/routes/postRoutes.js",
-  "./src/routes/commentRoutes.js",
-  "./src/routes/likeRoutes.js",
-];
-
-swaggerAutogen(outputFile, endpointsFiles, doc);
+// Generate Swagger documentation and log result
+try {
+  swaggerAutogenInstance(outputFile, endpointsFiles, doc)
+    .then(() => {
+      console.log(`Swagger documentation generated at ${outputFile}`);
+    })
+    .catch((err) => {
+      console.error("Error generating Swagger documentation:", err);
+    });
+} catch (err) {
+  console.error("Fatal error in swagger-autogen execution:", err);
+}

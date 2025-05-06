@@ -25,30 +25,37 @@ import userRouter from "./routes/userRoutes.js";
 const app = express();
 
 // CORS configuration
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",")
-  : [
-      "http://localhost:3000",
-      "http://localhost:8000",
-      "https://blog-sphere-backend-ruby.vercel.app",
-    ];
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean) || [
+  "http://localhost:3000",
+  "http://localhost:8000",
+  "https://blog-sphere-backend-ruby.vercel.app",
+];
 
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, origin);
+        callback(null, true);
       } else {
+        console.warn(`CORS policy: Blocked origin ${origin}`);
         callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
       }
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+    ],
     maxAge: 86400,
   })
 );
-app.options("*", cors());
 
 // Serve Swagger UI static files
 app.use(
