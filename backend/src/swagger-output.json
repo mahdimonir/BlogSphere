@@ -7,7 +7,7 @@
   },
   "host": "blog-sphere-backend-ruby.vercel.app",
   "schemes": ["https"],
-  "basePath": "/api/v1",
+  "basePath": "/",
   "consumes": ["application/json", "multipart/form-data"],
   "produces": ["application/json"],
   "securityDefinitions": {
@@ -86,7 +86,7 @@
     }
   },
   "paths": {
-    "/auth/signup": {
+    "/api/v1/auth/signup": {
       "post": {
         "tags": ["Auth"],
         "summary": "Sign up a new user",
@@ -137,7 +137,7 @@
         }
       }
     },
-    "/auth/verify": {
+    "/api/v1/auth/verify": {
       "post": {
         "tags": ["Auth"],
         "summary": "Verify user account with OTP",
@@ -183,7 +183,7 @@
         }
       }
     },
-    "/auth/resend-otp": {
+    "/api/v1/auth/resend-otp": {
       "post": {
         "tags": ["Auth"],
         "summary": "Resend OTP for email verification",
@@ -224,7 +224,7 @@
         }
       }
     },
-    "/auth/login": {
+    "/api/v1/auth/login": {
       "post": {
         "tags": ["Auth"],
         "summary": "Log in a user",
@@ -279,7 +279,7 @@
         }
       }
     },
-    "/auth/forget-password": {
+    "/api/v1/auth/forget-password": {
       "post": {
         "tags": ["Auth"],
         "summary": "Request password reset OTP",
@@ -320,7 +320,7 @@
         }
       }
     },
-    "/auth/reset-password": {
+    "/api/v1/auth/reset-password": {
       "post": {
         "tags": ["Auth"],
         "summary": "Reset password with OTP",
@@ -371,7 +371,7 @@
         }
       }
     },
-    "/auth/refresh-token": {
+    "/api/v1/auth/refresh-token": {
       "post": {
         "tags": ["Auth"],
         "summary": "Refresh access token",
@@ -411,7 +411,7 @@
         }
       }
     },
-    "/auth/logout": {
+    "/api/v1/auth/logout": {
       "post": {
         "tags": ["Auth"],
         "summary": "Log out a user",
@@ -431,7 +431,7 @@
         }
       }
     },
-    "/auth/update-user": {
+    "/api/v1/auth/update-user": {
       "patch": {
         "tags": ["Auth"],
         "summary": "Update user information",
@@ -484,7 +484,7 @@
         }
       }
     },
-    "/auth/update-avatar": {
+    "/api/v1/auth/update-avatar": {
       "patch": {
         "tags": ["Auth"],
         "summary": "Update user avatar",
@@ -525,7 +525,7 @@
         }
       }
     },
-    "/auth/delete-user": {
+    "/api/v1/auth/delete-user": {
       "delete": {
         "tags": ["Auth"],
         "summary": "Delete user account",
@@ -546,7 +546,7 @@
         }
       }
     },
-    "/users": {
+    "/api/v1/users": {
       "get": {
         "tags": ["Users"],
         "summary": "Get all users and their posts",
@@ -573,7 +573,7 @@
         }
       }
     },
-    "/users/{userName}": {
+    "/api/v1/users/{userName}": {
       "get": {
         "tags": ["Users"],
         "summary": "Get a single user and their posts",
@@ -601,7 +601,7 @@
         }
       }
     },
-    "/users/profile/me": {
+    "/api/v1/users/profile/me": {
       "get": {
         "tags": ["Users"],
         "summary": "Get authenticated user's profile",
@@ -622,7 +622,7 @@
         }
       }
     },
-    "/users/suspend/posts": {
+    "/api/v1/users/suspend/posts": {
       "get": {
         "tags": ["Users"],
         "summary": "Get authenticated user's suspended posts",
@@ -663,7 +663,7 @@
         }
       }
     },
-    "/users/suspend/comments": {
+    "/api/v1/users/suspend/comments": {
       "get": {
         "tags": ["Users"],
         "summary": "Get authenticated user's suspended comments",
@@ -704,7 +704,7 @@
         }
       }
     },
-    "/posts": {
+    "/api/v1/posts": {
       "get": {
         "tags": ["Posts"],
         "summary": "Get all posts",
@@ -811,7 +811,7 @@
         }
       }
     },
-    "/posts/my": {
+    "/api/v1/posts/my": {
       "get": {
         "tags": ["Posts"],
         "summary": "Get authenticated user's posts",
@@ -840,7 +840,7 @@
         }
       }
     },
-    "/posts/{id}": {
+    "/api/v1/posts/{id}": {
       "get": {
         "tags": ["Posts"],
         "summary": "Get a single post",
@@ -965,7 +965,7 @@
         }
       }
     },
-    "/comments": {
+    "/api/v1/comments": {
       "post": {
         "tags": ["Comments"],
         "summary": "Create a top-level comment",
@@ -1015,7 +1015,7 @@
         }
       }
     },
-    "/comments/replies": {
+    "/api/v1/comments/replies": {
       "post": {
         "tags": ["Comments"],
         "summary": "Create a nested comment (reply)",
@@ -1063,7 +1063,7 @@
         }
       }
     },
-    "/comments/{commentId}": {
+    "/api/v1/comments/{commentId}": {
       "patch": {
         "tags": ["Comments"],
         "summary": "Update a comment",
@@ -1146,7 +1146,7 @@
         }
       }
     },
-    "/comments/{postId}": {
+    "/api/v1/comments/{postId}": {
       "get": {
         "tags": ["Comments"],
         "summary": "Get comments for a post",
@@ -1174,7 +1174,7 @@
         }
       }
     },
-    "/admin/suspension/user/{userId}": {
+    "/api/v1/admin/suspension/user/{userId}": {
       "patch": {
         "tags": ["Admin"],
         "summary": "Toggle user suspension",
@@ -1206,7 +1206,7 @@
         }
       }
     },
-    "/admin/suspend/users": {
+    "/api/v1/admin/suspend/users": {
       "get": {
         "tags": ["Admin"],
         "summary": "Get suspended users",
@@ -1248,7 +1248,7 @@
         }
       }
     },
-    "/admin/suspension/post/{postId}": {
+    "/api/v1/admin/suspension/post/{postId}": {
       "patch": {
         "tags": ["Admin"],
         "summary": "Toggle post suspension",
@@ -1280,7 +1280,7 @@
         }
       }
     },
-    "/admin/suspend/posts": {
+    "/api/v1/admin/suspend/posts": {
       "get": {
         "tags": ["Admin"],
         "summary": "Get suspended posts",
@@ -1322,7 +1322,7 @@
         }
       }
     },
-    "/admin/suspension/comment/{commentId}": {
+    "/api/v1/admin/suspension/comment/{commentId}": {
       "patch": {
         "tags": ["Admin"],
         "summary": "Toggle comment suspension",
@@ -1354,7 +1354,7 @@
         }
       }
     },
-    "/admin/suspend/comments": {
+    "/api/v1/admin/suspend/comments": {
       "get": {
         "tags": ["Admin"],
         "summary": "Get suspended comments",
@@ -1396,7 +1396,7 @@
         }
       }
     },
-    "/likes/toggle": {
+    "/api/v1/likes/toggle": {
       "patch": {
         "tags": ["Likes"],
         "summary": "Toggle like on a post or comment",
