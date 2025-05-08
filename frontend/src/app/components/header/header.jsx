@@ -92,7 +92,7 @@ export default function Header() {
                 className="right-0 md:hidden text-red-500"
                 onClick={() => setModel(false)}
               />
-              {!user ? (
+              {user ? (
                 <>
                   <div className="relative">
                     <Bell className="h-5 w-5 text-gray-900 dark:text-gray-100" />
