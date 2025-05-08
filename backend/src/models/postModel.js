@@ -64,7 +64,7 @@ const postSchema = new Schema(
 postSchema.pre(/^find/, function (next) {
   this.populate({
     path: "author",
-    select: "userName",
+    select: "userName avatar",
   });
   next();
 });

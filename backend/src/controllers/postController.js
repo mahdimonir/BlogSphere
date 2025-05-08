@@ -54,7 +54,7 @@ const createPost = asyncHandler(async (req, res) => {
     author: req.userId,
   });
   await post.save();
-  await post.populate("author", "userName");
+  await post.populate("author", "userName", "avatar");
 
   return res
     .status(201)
@@ -219,6 +219,7 @@ const getPosts = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          avatar: "$$user.avatar",
                         },
                       },
                     },
@@ -231,6 +232,7 @@ const getPosts = asyncHandler(async (req, res) => {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.avatar": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
@@ -286,6 +288,7 @@ const getPosts = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    avatar: "$$user.avatar",
                   },
                 },
               },
@@ -304,6 +307,7 @@ const getPosts = asyncHandler(async (req, res) => {
         status: 1,
         createdAt: 1,
         "author.userName": 1,
+        "author.avatar": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
@@ -455,6 +459,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          avatar: "$$user.avatar",
                         },
                       },
                     },
@@ -467,6 +472,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.avatar": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
@@ -522,6 +528,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    avatar: "$$user.avatar",
                   },
                 },
               },
@@ -540,6 +547,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
         status: 1,
         createdAt: 1,
         "author.userName": 1,
+        "author.avatar": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
@@ -663,6 +671,7 @@ const getPost = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          avatar: "$$user.avatar",
                         },
                       },
                     },
@@ -675,6 +684,7 @@ const getPost = asyncHandler(async (req, res) => {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.avatar": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
@@ -730,6 +740,7 @@ const getPost = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    avatar: "$$user.avatar",
                   },
                 },
               },
@@ -748,6 +759,7 @@ const getPost = asyncHandler(async (req, res) => {
         status: 1,
         createdAt: 1,
         "author.userName": 1,
+        "author.avatar": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
