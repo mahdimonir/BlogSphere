@@ -1,25 +1,26 @@
 # BlogSphere
 
-BlogSphere is a full-stack blog application built with Next.js (React) for the frontend, Express.js for the backend, MongoDB for the database, and JWT for authentication. It allows users to register, log in, create/edit/delete blog posts, comment on posts, like/dislike posts, and includes an admin dashboard for managing users and content.
+BlogSphere is a full-stack blog application built with Next.js (React) for the frontend, Express.js for the backend, MongoDB for the database, and JWT for authentication. It allows users to register, log in, create/edit/delete blog posts, comment on posts, like/dislike posts or comments, and includes an admin dashboard for managing users and content.
 
 ## Features
 
-- User authentication (register, login, logout) with JWT
-- Blog post creation, editing, and deletion
-- Commenting system
-- Like/dislike functionality for posts
-- Admin dashboard for user and content management
-- Search functionality for post titles
+- User authentication (register, login, logout, email verification) with JWT
+- Blog post creation, editing, and deletion with image upload
+- Nested commenting system (up to 5 levels deep)
+- Like/dislike functionality for posts and comments
+- Admin dashboard for user, post, and comment management (suspension toggling)
+- Search functionality for post titles, users, and comments
 - Responsive design with Tailwind CSS
 - Basic SEO with Next.js metadata
+- API documentation with Swagger UI at `/api-docs`
 - Error handling for robust operation
 
 ## Tech Stack
 
-- **Frontend**: Next.js, React, Tailwind CSS
-- **Backend**: Express.js, MongoDB, Mongoose
-- **Authentication**: JWT
-- **Deployment**: Vercel (frontend), Heroku/Render (backend)
+- **Frontend**: Next.js, React, Tailwind CSS, Axios, React Hook Form, Lucide React, Swiper, React Hot Toast
+- **Backend**: Express.js, MongoDB, Mongoose, JWT, Swagger Autogen
+- **Authentication**: JWT with refresh tokens
+- **Deployment**: Vercel (frontend and backend)
 
 ## Prerequisites
 
@@ -36,44 +37,67 @@ Before setting up the project, ensure you have the following installed:
 ```
 blogsphere/
 ├── backend/
-│   ├── controllers/
-│   │   ├── userController.js
-│   │   ├── postController.js
-│   │   ├── commentController.js
-│   ├── middleware/
-│   │   ├── auth.js
-│   ├── models/
-│   │   ├── User.js
-│   │   ├── Post.js
-│   │   ├── Comment.js
-│   ├── routes/
-│   │   ├── userRoutes.js
-│   │   ├── postRoutes.js
-│   │   ├── commentRoutes.js
+│   ├── src/
+│   │   ├── controllers/
+│   │   │   ├── adminController.js
+│   │   │   ├── authController.js
+│   │   │   ├── commentController.js
+│   │   │   ├── likeController.js
+│   │   │   ├── postController.js
+│   │   │   ├── userController.js
+│   │   ├── db/
+│   │   │   ├── index.js
+│   │   ├── middleware/
+│   │   │   ├── authMiddleware.js
+│   │   │   ├── errorHandler.js
+│   │   │   ├── multerMiddleware.js
+│   │   ├── models/
+│   │   │   ├── commentModel.js
+│   │   │   ├── likeModel.js
+│   │   │   ├── postModel.js
+│   │   │   ├── userModel.js
+│   │   ├── routes/
+│   │   │   ├── adminRoutes.js
+│   │   │   ├── authRoutes.js
+│   │   │   ├── commentRoutes.js
+│   │   │   ├── likeRoutes.js
+│   │   │   ├── postRoutes.js
+│   │   │   ├── userRoutes.js
+│   │   ├── utils/
+│   │   │   ├── email-templates/
+│   |   │   │   ├── mail-template.ejs
+│   │   │   ├── sendMail/
+│   |   │   │   ├── index.js
+│   │   │   ├── ApiError.js
+│   │   │   ├── ApiResponse.js
+│   │   │   ├── asyncHandler.js
+│   │   │   ├── cloudinary.js
+│   │   ├── app.js
+│   │   ├── index.js
+│   │   ├── swagger-output.json
+│   │   ├── swagger.mjs
 │   ├── .env
-│   ├── server.js
 │   ├── package.json
 ├── frontend/
-│   ├── app/
-│   │   ├── create/
-│   │   │   ├── page.js
-│   │   ├── login/
-│   │   │   ├── page.js
-│   │   ├── posts/
-│   │   │   ├── [id]/
-│   │   │   │   ├── page.js
-│   │   ├── register/
-│   │   │   ├── page.js
-│   │   ├── dashboard/
-│   │   │   ├── page.js
-│   │   ├── globals.css
-│   │   ├── layout.js
-│   │   ├── page.js
-│   ├── context/
-│   │   ├── AuthContext.js
+│   ├── src/
+│   │   ├── app/
+│   │   |   ├── (routes)/
+│   │   |   ├── assets/
+│   │   |   ├── components/
+│   │   |   ├── hooks/
+│   │   |   ├── globals.css
+│   │   |   ├── layout.js
+│   |   │   ├── page.js
+|   |   ├── context/
+│   │   |   ├── AuthContext.js
+│   │   ├── middleware.js
+│   │   ├── server.js
 │   ├── public/
+│   ├── .env
 │   ├── next.config.js
 │   ├── package.json
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
 ├── README.md
 ```
 
@@ -104,7 +128,7 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
    npm install
    ```
 
-   This installs required packages: `express`, `mongoose`, `cors`, `jsonwebtoken`, `bcryptjs`, and `dotenv`.
+   This installs required packages: `express`, `mongoose`, `cors`, `jsonwebtoken`, `bcryptjs`, `dotenv`, `swagger-autogen`, `swagger-ui-express`.
 
 3. **Create `.env` File**:
    In the `backend/` directory, create a `.env` file with the following content:
@@ -127,11 +151,20 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
      ```
    - If using MongoDB Atlas, ensure your IP is whitelisted in the Atlas dashboard.
 
-5. **Start the Backend Server**:
+5. **Generate Swagger Documentation**:
+   Run the Swagger autogen script to generate `swagger-output.json`:
+
+   ```bash
+   node swagger.mjs
+   ```
+
+6. **Start the Backend Server**:
+
    ```bash
    npm start
    ```
-   The server should start at `http://localhost:5000`. You should see "MongoDB connected" and "Server running on port 5000" in the console.
+
+   The server should start at `http://localhost:5000`. You should see "MongoDB connected" and "Server running on port 5000" in the console. Visit `http://localhost:5000/api-docs` to view the Swagger UI.
 
 ### 3. Frontend Setup
 
@@ -147,10 +180,10 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
    npm install
    ```
 
-   This installs required packages: `next`, `react`, `react-dom`, `tailwindcss`, `postcss`, `autoprefixer`.
+   This installs required packages: `next`, `react`, `react-dom`, `axios`, `lucide-react`, `react-hook-form`, `react-hot-toast`, `swiper`, and dev dependencies `tailwindcss`, `@tailwindcss/typography`, `@tailwindcss/postcss`.
 
 3. **Configure Tailwind CSS**:
-   Ensure `tailwind.config.js` and `postcss.config.js` are present. They should already be set up as follows:
+   Ensure `tailwind.config.js` and `postcss.config.js` are correctly set up:
 
    **tailwind.config.js**:
 
@@ -164,7 +197,7 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
      theme: {
        extend: {},
      },
-     plugins: [],
+     plugins: [require("@tailwindcss/typography")],
    };
    ```
 
@@ -179,7 +212,16 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
    };
    ```
 
-4. **Start the Frontend Development Server**:
+4. **Configure Backend API URL**:
+   Create a `.env.local` file in the `frontend/` directory to set the backend API URL:
+
+   ```
+   NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
+   ```
+
+   If the backend is deployed (e.g., at `https://blog-sphere-backend-ruby.vercel.app/api/v1`), update `NEXT_PUBLIC_API_URL` accordingly.
+
+5. **Start the Frontend Development Server**:
 
    ```bash
    npm run dev
@@ -187,17 +229,14 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
 
    The frontend should start at `http://localhost:3000`.
 
-5. **Configure Backend API URL**:
-   The frontend assumes the backend is running at `http://localhost:5000`. If your backend is hosted elsewhere, update the API fetch URLs in the frontend code (e.g., in `app/page.js`, `app/login/page.js`, etc.) to point to your backend URL.
-
 ### 4. Testing the Application
 
 1. **Open the Frontend**:
    Navigate to `http://localhost:3000` in your browser.
 
    - You should see the BlogSphere homepage with a search bar and a list of posts (initially empty).
-   - Click "Register" to create a new user account.
-   - Log in to create posts, comment, like/dislike posts, or access the dashboard.
+   - Click "Register" to create a new user account and verify your email with an OTP.
+   - Log in to create posts, comment, like/dislike posts or comments, or access the dashboard.
 
 2. **Test Admin Features**:
 
@@ -207,17 +246,23 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
      use blogsphere
      db.users.updateOne({ email: "your-email@example.com" }, { $set: { role: "admin" } });
      ```
-   - Log in as the admin user to access user management and content moderation features in the dashboard.
+   - Log in as the admin user to access user, post, and comment suspension features in the dashboard.
 
 3. **Verify Error Handling**:
-   - The application includes global error handling to prevent issues like "script error." Test by:
-     - Entering invalid credentials during login/register.
-     - Trying to access protected routes (e.g., `/create`) without logging in.
-     - Submitting invalid data (e.g., empty post title).
+
+   - Test invalid inputs:
+     - Enter incorrect credentials during login/register.
+     - Submit empty or invalid post titles.
+     - Try accessing protected routes (e.g., `/create`) without logging in.
+   - Check the browser console and network tab for errors.
+
+4. **Test Swagger UI**:
+   - Visit `http://localhost:5000/api-docs` to ensure API endpoints are documented correctly.
+   - Test endpoints like `/auth/signup`, `/posts`, or `/comments` using the Swagger interface.
 
 ### 5. Deployment
 
-#### Backend Deployment (Heroku/Render)
+#### Backend Deployment (Vercel)
 
 1. **Push Backend to Git**:
    Ensure the `backend/` directory is a Git repository:
@@ -229,36 +274,51 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
    git commit -m "Initial backend commit"
    ```
 
-2. **Deploy to Heroku**:
+2. **Deploy to Vercel**:
 
-   - Install the Heroku CLI: [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli).
-   - Log in to Heroku:
+   - Install the Vercel CLI:
      ```bash
-     heroku login
+     npm install -g vercel
      ```
-   - Create a new Heroku app:
+   - Log in to Vercel:
      ```bash
-     heroku create blogsphere-backend
-     ```
-   - Add MongoDB Atlas add-on or configure `MONGO_URI`:
-     ```bash
-     heroku config:set MONGO_URI="your-mongodb-atlas-uri"
-     heroku config:set JWT_SECRET="your_jwt_secret_key"
+     vercel login
      ```
    - Deploy the backend:
      ```bash
-     git push heroku main
+     vercel
      ```
-   - Open the deployed backend:
-     ```bash
-     heroku open
-     ```
+   - Configure the project:
+     - Set the build command to `npm run build` (if applicable) or skip if no build step.
+     - Set environment variables in Vercel:
+       ```bash
+       vercel env add MONGO_URI
+       vercel env add JWT_SECRET
+       vercel env add PORT
+       ```
+       Enter the values from your `.env` file.
+   - The deployed URL will be something like `https://blog-sphere-backend-ruby.vercel.app`. Update the frontend’s `NEXT_PUBLIC_API_URL` to this URL.
 
-3. **Alternative: Render**:
-   - Create a new web service on Render ([render.com](https://render.com)).
-   - Connect your GitHub repository for the backend.
-   - Set environment variables (`MONGO_URI`, `JWT_SECRET`, `PORT`) in the Render dashboard.
-   - Deploy the service.
+3. **Configure Vercel for Backend**:
+   - In `vercel.json` (create if not present), add:
+     ```json
+     {
+       "version": 2,
+       "builds": [
+         {
+           "src": "server.js",
+           "use": "@vercel/node"
+         }
+       ],
+       "routes": [
+         {
+           "src": "/(.*)",
+           "dest": "server.js"
+         }
+       ]
+     }
+     ```
+   - Ensure `server.js` is set up to handle Vercel’s serverless environment (e.g., use `module.exports = app`).
 
 #### Frontend Deployment (Vercel)
 
@@ -274,56 +334,68 @@ _Note_: Replace `https://github.com/your-username/blogsphere.git` with the actua
 
 2. **Deploy to Vercel**:
 
-   - Install the Vercel CLI:
-     ```bash
-     npm install -g vercel
-     ```
-   - Log in to Vercel:
-     ```bash
-     vercel login
-     ```
    - Deploy the frontend:
      ```bash
      vercel
      ```
-   - Follow the prompts to configure the project. Ensure the build command is `npm run build` and the output directory is `.next`.
-   - Set the backend API URL as an environment variable in Vercel:
-     ```bash
-     vercel env add NEXT_PUBLIC_API_URL
-     ```
-     Enter the URL of your deployed backend (e.g., `https://blogsphere-backend.herokuapp.com`).
+   - Configure the project:
+     - Set the build command to `npm run build`.
+     - Set the output directory to `.next`.
+     - Add the environment variable:
+       ```bash
+       vercel env add NEXT_PUBLIC_API_URL
+       ```
+       Enter the backend URL (e.g., `https://blog-sphere-backend-ruby.vercel.app/api/v1`).
 
 3. **Update Frontend API Calls**:
-   If the backend is not at `http://localhost:5000`, update the API URLs in the frontend code to use the environment variable `process.env.NEXT_PUBLIC_API_URL`. For example, in `app/page.js`:
+   Ensure API calls use the environment variable:
    ```javascript
    const res = await fetch(
-     `${process.env.NEXT_PUBLIC_API_URL}/api/posts?search=${search}`
+     `${process.env.NEXT_PUBLIC_API_URL}/posts?search=${search}`,
+     { headers: { Authorization: `Bearer ${token}` } }
    );
    ```
 
 ### 6. Troubleshooting
 
 - **MongoDB Connection Issues**:
-  - Ensure MongoDB is running or your Atlas URI is correct.
-  - Check your IP is whitelisted in MongoDB Atlas.
+  - Verify `MONGO_URI` is correct and your IP is whitelisted in MongoDB Atlas.
+  - Check MongoDB logs for connection errors.
 - **CORS Errors**:
-  - Verify the backend allows CORS for the frontend URL (handled by `cors` middleware).
+  - Ensure the backend’s `cors` middleware allows the frontend URL (local or deployed).
+  - Example in `server.js`:
+    ```javascript
+    app.use(
+      cors({
+        origin: ["http://localhost:3000", "https://your-frontend.vercel.app"],
+      })
+    );
+    ```
 - **Script Errors**:
-  - Ensure all scripts load correctly (check browser console).
-  - Verify `next.config.js` and Tailwind configurations are correct.
+  - Check the browser console for errors like "script error."
+  - Verify `next.config.js`, `tailwind.config.js`, and `postcss.config.js` are correct.
 - **JWT Errors**:
-  - Ensure `JWT_SECRET` is consistent across backend and frontend sessions.
+  - Ensure `JWT_SECRET` is consistent and tokens are sent in the `Authorization` header (`Bearer <token>`).
+- **Swagger UI Issues**:
+  - If `/api-docs` fails, ensure `swagger-output.json` exists and `swagger-ui-express` is set up in `server.js`:
+    ```javascript
+    import swaggerUi from "swagger-ui-express";
+    import swaggerDocument from "./src/swagger-output.json" assert { type: "json" };
+    app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+    ```
 - **Deployment Issues**:
-  - Check build logs in Vercel/Heroku for errors.
-  - Verify environment variables are set correctly.
+  - Check Vercel build logs for errors.
+  - Verify environment variables are set in the Vercel dashboard.
+  - Ensure the backend handles Vercel’s serverless environment correctly.
 
 ### 7. Optional Enhancements
 
-- Add a rich text editor (e.g., Quill or TinyMCE) for post creation.
-- Implement social login (e.g., Google OAuth).
-- Add password reset via email using a service like Nodemailer.
-- Enhance SEO with dynamic meta tags per post.
-- Implement lazy loading for images using Next.js `Image` component.
+- Integrate a rich text editor (e.g., Quill or TinyMCE) for post creation.
+- Add social login (e.g., Google OAuth) using `next-auth`.
+- Implement password reset via email with Nodemailer.
+- Enhance SEO with dynamic meta tags per post using `next/head`.
+- Optimize images with Next.js `Image` component for lazy loading.
+- Add real-time notifications for likes/comments using WebSockets.
 
 ## Contributing
 

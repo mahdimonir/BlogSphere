@@ -1,10 +1,5 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
@@ -13,17 +8,30 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
-/* 
- @media (prefers-color-scheme: dark) {
-   :root {
-    --background: #beb3b3;
-    --foreground: #f3eeee;
-  } 
-}  */
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --color-primary: #007bff; /* Example primary color */
+  --color-secondary: #6c757d; /* Example secondary color */
+  --color-accent: #28a745; /* Example accent color */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #ffffff;
+    --foreground: #171717;
+    --color-primary: #66b3ff; /* Dark mode primary color */
+    --color-secondary: #a7b1ba; /* Dark mode secondary color */
+    --color-accent: #5cb85c; /* Dark mode accent color */
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .pagination {
@@ -52,4 +60,16 @@ body {
 
 .dots {
   padding: 8px 12px;
+}
+
+.swiper-pagination {
+  bottom: 20px !important;
+}
+.swiper-pagination-bullet {
+  background-color: gray !important;
+  opacity: 0.7;
+}
+.swiper-pagination-bullet-active {
+  background-color: #3b82f6;
+  opacity: 1;
 }

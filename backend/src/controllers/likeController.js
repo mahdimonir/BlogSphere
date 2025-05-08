@@ -74,8 +74,10 @@ const toggleLike = asyncHandler(async (req, res) => {
 
     await Model.findByIdAndUpdate(targetId, { $push: { likes: like._id } });
 
-    // Fetch the like with populated likedBy (userName and _id are populated by pre hook)
-    const populatedLike = await Like.findById(like._id).lean();
+    // Fetch the like with populated likedBy (including userName and avatar)
+    const populatedLike = await Like.findById(like._id)
+      .populate("likedBy", "userName avatar")
+      .lean();
 
     // Transform the response to match desired format
     const responseData = {
@@ -83,6 +85,7 @@ const toggleLike = asyncHandler(async (req, res) => {
       likedBy: {
         _id: populatedLike.likedBy._id,
         userName: populatedLike.likedBy.userName,
+        avatar: populatedLike.likedBy.avatar,
       },
     };
 

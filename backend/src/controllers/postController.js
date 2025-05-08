@@ -54,7 +54,8 @@ const createPost = asyncHandler(async (req, res) => {
     author: req.userId,
   });
   await post.save();
-  await post.populate("author", "userName", "avatar");
+  // Corrected populate syntax
+  await post.populate("author", "userName avatar");
 
   return res
     .status(201)
