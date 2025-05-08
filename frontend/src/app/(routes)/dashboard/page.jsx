@@ -1,6 +1,4 @@
-"use client";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { redirect } from "next/navigation";
 // import { useAuth } from "@/context/AuthContext";
 // import { LayoutGridIcon } from "lucide-react";
 // import Link from "next/link";
@@ -291,10 +289,7 @@ import { useEffect } from "react";
 //Redirect to /dasboard/users by default
 
 
-export default function DefaultTab(){
-  const router =useRouter();
-   useEffect(()=>{
-             router.push("dashboard/users")
-},[])
-return null
+
+export default function Page() {
+  redirect('/dashboard/users/allUsers')
 }
