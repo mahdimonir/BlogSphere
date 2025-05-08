@@ -1,17 +1,10 @@
-import fs from "fs/promises";
 import multer from "multer";
 import path from "path";
-import { fileURLToPath } from "url";
 
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Configure Multer storage
+// Configure Multer storage to use /tmp/ for serverless environments
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const dest = path.join(__dirname, "../../public/temp");
-    cb(null, dest);
+    cb(null, "/tmp/"); // Use /tmp/ for AWS Lambda
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -41,46 +34,6 @@ const upload = multer({
     cb(new Error("Only JPEG/PNG images are allowed"));
   },
 });
-
-// Override the `fields` method to include auto-deletion logic
-upload.fields = ((originalFields) => {
-  return function (fields) {
-    const middleware = originalFields.call(this, fields);
-
-    return async (req, res, next) => {
-      middleware(req, res, async (err) => {
-        if (err) {
-          return next(err);
-        }
-
-        // Schedule file deletion for each uploaded file
-        if (req.files) {
-          for (const field in req.files) {
-            req.files[field].forEach((file) => {
-              if (file.path) {
-                scheduleFileDeletion(file.path);
-              }
-            });
-          }
-        }
-
-        next();
-      });
-    };
-  };
-})(upload.fields);
-
-// Function to schedule file deletion
-const scheduleFileDeletion = async (filePath) => {
-  setTimeout(async () => {
-    try {
-      await fs.access(filePath);
-      await fs.unlink(filePath);
-    } catch (error) {
-      // Silently handle errors (e.g., ENOENT, permissions)
-    }
-  }, 60000); // 60000ms = 1 minute
-};
 
 // Apply fields configuration
 const configuredUpload = upload.fields([
