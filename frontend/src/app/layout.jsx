@@ -1,4 +1,4 @@
-import ClientWrapper from "@/context/ClientWrapper"; // Import ClientWrapper
+import { AuthProvider } from "@/context/AuthContext";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import Header from "./components/header/header";
@@ -24,11 +24,12 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        cz-shortcut-listen="true"
       >
-        <ClientWrapper>
+        <AuthProvider>
           <Header />
           {children}
-        </ClientWrapper>
+        </AuthProvider>
         <Toaster position="top-center" />
       </body>
     </html>

@@ -20,6 +20,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.56.1",
     "react-hot-toast": "^2.5.2",
+    "react-spinner": "^0.2.7",
     "react-spinners": "^0.17.0",
     "swiper": "^11.2.6"
   },

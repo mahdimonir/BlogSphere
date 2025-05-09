@@ -32,3 +32,10 @@ export const capitalizeFirstLetter = (string) => {
   if (!string) return "Unknown";
   return string.charAt(0).toUpperCase() + string.slice(1);
 };
+
+// Format numbers for likes and comments (e.g., 1000 -> "1k", 1000000 -> "1M")
+export const formatNumber = (num) => {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return num.toString();
+};

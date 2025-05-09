@@ -1,151 +1,70 @@
 "use client";
+import { API_URL } from "@/server";
+import axios from "axios";
 import Head from "next/head";
 import { useEffect, useState } from "react";
 import "swiper/css";
 import "swiper/css/pagination";
-import { Demo_Image } from "./assets/demo";
+import Error from "./components/Error";
 import FilterBar from "./components/FilterBar";
 import HeroSection from "./components/HeroSection";
+import Loading from "./components/Loading";
 import PostCard from "./components/PostCard";
-
-// Mock data for featured post
-const featuredPost = [
-  {
-    title: "Exploring my nature walk",
-    content:
-      "With each step, I uncover the soothing sounds of the forest, rustling of leaves, and the fresh scent of the outdoors, offering readers a serene escape and a chance to reconnect with nature's wonders.",
-    image: "/images/nature-walk.png",
-    author: {
-      userName: "alex42 || Traveler",
-      avatar: `${Demo_Image}`,
-    },
-    createdAt: "25 April, 2025",
-    _id: "01",
-  },
-  {
-    title: "Exploring my nature walk",
-    content:
-      "With each step, I uncover the soothing sounds of the forest, rustling of leaves, and the fresh scent of the outdoors, offering readers a serene escape and a chance to reconnect with nature's wonders.",
-    image: "/images/nature-walk.png",
-    author: {
-      userName: "alex42 || Traveler",
-      avatar: `${Demo_Image}`,
-    },
-    createdAt: "25 April, 2025",
-    _id: "02",
-  },
-  {
-    title: "Exploring my nature walk",
-    content:
-      "With each step, I uncover the soothing sounds of the forest, rustling of leaves, and the fresh scent of the outdoors, offering readers a serene escape and a chance to reconnect with nature's wonders.",
-    image: "/images/nature-walk.png",
-    author: {
-      userName: "alex42 || Traveler",
-      avatar: `${Demo_Image}`,
-    },
-    createdAt: "25 April, 2025",
-    _id: "03",
-  },
-];
-
-// Mock data for blogs
-const posts = [
-  {
-    category: "Food",
-    image: "/images/food1.png",
-    title: "Delightful secret recipes",
-    content: "Discover unique flavors and traditional cooking techniques.",
-    author: {
-      userName: "Chef Maria",
-      avatar: "/images/author.png",
-    },
-    _id: "delightful",
-    createdAt: "24 April, 2025",
-  },
-  {
-    category: "Adventure",
-    image: "/images/advanture1.png",
-    title: "Campfire under forest",
-    author: {
-      userName: "John Doe",
-      avatar: "/images/author.png",
-    },
-    content: "Experience the magic of a campfire surrounded by nature.",
-    _id: "campfire-under-forest",
-    createdAt: "22 April, 2025",
-  },
-  {
-    category: "Food",
-    image: "/images/food1.png",
-    title: "Portuguese Street Food",
-    author: {
-      userName: "Chef Maria",
-      avatar: "/images/author.png",
-    },
-    content: "Explore the vibrant flavors of Portuguese street food.",
-    _id: "portuguese-street-food",
-    createdAt: "21 April, 2025",
-  },
-  {
-    category: "Technologies",
-    image: "/images/starlink.png",
-    title: "The future of Starlink",
-    author: {
-      userName: "Tech Analyst",
-      avatar: "/images/author.png",
-    },
-    content: "Exploring the potential of Starlink in global connectivity.",
-    _id: "future-of-starlink",
-    createdAt: "19 April, 2025",
-  },
-  {
-    category: "Adventure",
-    image: "/images/advanture1.png",
-    title: "Candlelight forest camping",
-    author: {
-      userName: "Nature Lover",
-      avatar: "/images/author.png",
-    },
-    content: "Experience the tranquility of camping in a candlelit forest.",
-    _id: "candlelight-forest-camping",
-    createdAt: "18 April, 2025",
-  },
-  {
-    category: "Food",
-    image: "/images/food1.png",
-    title: "Barbeques Street Food",
-    author: {
-      userName: "Chef Maria",
-      avatar: "/images/author.png",
-    },
-    content: "Savor the smoky flavors of barbeque street food.",
-    _id: "barbeques-street-food",
-    createdAt: "16 April, 2025",
-  },
-  {
-    category: "Technologies",
-    image: "/images/starlink.png",
-    title: "Future of Augmented Reality",
-    author: {
-      userName: "Tech Analyst",
-      avatar: "/images/author.png",
-    },
-    content: "Exploring the potential of augmented reality in daily life.",
-    _id: "future-of-ar",
-    createdAt: "15 April, 2025",
-  },
-];
 
 export default function Home() {
   const [activeCategory, setActiveCategory] = useState("All");
-
-  const filteredBlogs =
-    activeCategory === "All"
-      ? posts
-      : posts.filter((post) => post.category === activeCategory);
-
+  const [sortBy, setSortBy] = useState("Newest"); // Add sortBy state
+  const [posts, setPosts] = useState([]); // State to store fetched posts
+  const [filteredBlogs, setFilteredBlogs] = useState([]); // State for filtered posts
   const [isSticky, setIsSticky] = useState(false);
+  const [loading, setLoading] = useState(true); // Loading state
+  const [error, setError] = useState(null); // Error state
 
+  // Fetch posts from the /posts/ endpoint
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        setLoading(true); // Start loading
+        const response = await axios.get(`${API_URL}/posts/`, {
+          withCredentials: true,
+        });
+        const postsData = response.data.data.posts; // Access the correct path in the response
+        setPosts(postsData); // Set the posts state
+        setFilteredBlogs(postsData); // Initialize filteredBlogs with all posts
+        setLoading(false); // Stop loading
+      } catch (error) {
+        console.error("Error fetching posts:", error);
+        setError("Failed to load posts. Please try again later."); // Set error message
+        setLoading(false); // Stop loading
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
+  // Filter blogs based on the active category
+  useEffect(() => {
+    let filtered = posts;
+
+    if (activeCategory !== "All") {
+      filtered = posts.filter((post) => post.catagory.includes(activeCategory));
+    }
+
+    // Apply sorting
+    if (sortBy === "Newest") {
+      filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else if (sortBy === "Oldest") {
+      filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortBy === "Most Liked") {
+      filtered.sort((a, b) => b.likeCount - a.likeCount);
+    } else if (sortBy === "Most Commented") {
+      filtered.sort((a, b) => b.commentCount - a.commentCount);
+    }
+
+    setFilteredBlogs(filtered);
+  }, [activeCategory, sortBy, posts]);
+
+  // Handle scroll for sticky button
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop =
@@ -169,6 +88,21 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Filter posts for HeroSection to only include 'Trending' category
+  const trendingPosts = posts.filter((post) =>
+    post.catagory.includes("Trending")
+  );
+
+  // Show loading state
+  if (loading) {
+    return <Loading />;
+  }
+
+  // Show error state
+  if (error) {
+    return <Error errMessage={error} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 transition-colors dark:bg-gray-900">
       <Head>
@@ -181,15 +115,31 @@ export default function Home() {
       </Head>
 
       <div className="mx-auto">
-        <HeroSection posts={featuredPost} />
-
+        {Array.isArray(trendingPosts) && trendingPosts.length > 0 ? (
+          <HeroSection posts={trendingPosts} />
+        ) : (
+          <div className="text-center text-gray-900 dark:text-gray-100 py-8">
+            No featured posts available.
+          </div>
+        )}
         <main className="container mx-auto px-4 mt-8 md:mt-0">
-          <FilterBar activeCategory={activeCategory} sortBy="Newest" />
+          <FilterBar
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory} // Pass setActiveCategory to update category
+            sortBy={sortBy}
+            setSortBy={setSortBy} // Pass setSortBy to update sorting
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {filteredBlogs.map((post) => (
-              <PostCard key={post._id} post={post} />
-            ))}
+            {Array.isArray(filteredBlogs) && filteredBlogs.length > 0 ? (
+              filteredBlogs.map((post) => (
+                <PostCard key={post._id} post={post} />
+              ))
+            ) : (
+              <div className="text-center text-gray-900 dark:text-gray-100 col-span-full">
+                No posts available.
+              </div>
+            )}
           </div>
 
           <div

@@ -1,6 +1,12 @@
 "use client";
 
-import { calculateReadTime, formatDate } from "@/app/configs/constants";
+import {
+  calculateReadTime,
+  capitalizeFirstLetter,
+  formatDate,
+  formatNumber,
+} from "@/app/configs/constants";
+import { HeartIcon, MessageCircle } from "lucide-react"; // Adjust import path if necessary
 import Image from "next/image";
 import Link from "next/link";
 import { Demo_Image, Demo_Image2 } from "../assets/demo";
@@ -12,8 +18,10 @@ export default function PostCard({ post }) {
     image = Demo_Image2,
     author = { userName: "Unknown", avatar: Demo_Image },
     _id,
-    category = "General",
+    catagory = ["General"],
     createdAt,
+    likeCount = 0,
+    commentCount = 0,
   } = post;
 
   // Ensure the image URL uses https if possible
@@ -21,55 +29,89 @@ export default function PostCard({ post }) {
     ? image.replace("http://", "https://")
     : image;
 
+  // Filter out 'Trending' and limit to 1 category for display
+  const filteredCategories = catagory
+    .filter((category) => category.toLowerCase() !== "trending")
+    .slice(0, 1);
+
+  // Default to 'General' if no categories remain
+  const displayCategories =
+    filteredCategories.length > 0 ? filteredCategories : ["General"];
+
   return (
     <Link href={`/posts/${_id}`}>
-      <div className="rounded-lg overflow-hidden shadow-md dark:shadow-neutral-950 transition-shadow hover:shadow-lg">
+      <div className="rounded-lg overflow-hidden bg-black text-white transition-shadow hover:shadow-lg">
+        {/* Image Section */}
         <div className="relative">
           <Image
-            src={image} // Use the secure URL
+            src={secureImageUrl}
             alt={title}
             width={400}
             height={300}
-            className="w-full h-75 object-cover"
-            unoptimized // Skip optimization for debugging
+            className="w-full h-48 object-cover"
+            unoptimized
           />
           <div className="absolute top-3 left-3">
-            <span className="bg-white dark:bg-gray-700 py-1 px-3 rounded-full text-xs font-medium text-gray-800 dark:text-gray-100">
-              {category}
-            </span>
+            {displayCategories.map((category, index) => (
+              <span
+                key={index}
+                className="bg-white text-black py-1 px-3 rounded-full text-xs font-medium"
+              >
+                {capitalizeFirstLetter(category)}
+              </span>
+            ))}
           </div>
         </div>
 
+        {/* Content Section */}
         <div className="p-4">
-          <h3 className="font-bold text-lg mb-2 text-gray-800 dark:text-gray-100">
-            {title}
-          </h3>
+          {/* Date and Read Time */}
+          {createdAt && (
+            <div className="text-xs text-gray-400 mb-2 flex justify-between">
+              <span>{formatDate(createdAt)}</span>
+              <span>{calculateReadTime(content)}</span>
+            </div>
+          )}
+
+          {/* Title */}
+          <h3 className="font-bold text-lg mb-2">{title}</h3>
+
+          {/* Description */}
           {content && (
-            <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-3">
+            <p className="text-gray-300 text-sm mb-4 line-clamp-2">
               {content.slice(0, 100) + (content.length > 100 ? "..." : "")}
             </p>
           )}
 
-          <div className="flex items-center justify-between">
-            {/* <Link href={`/users/${author?._id}`}> */}
+          {/* Author, Likes, and Comments */}
+          <div className="flex items-center justify-between mx-2">
+            {/* Author */}
             <div className="flex items-center gap-2">
-              <img
+              <Image
                 src={author.avatar}
                 alt={author.userName}
-                width={25}
-                height={25}
+                width={24}
+                height={24}
                 className="rounded-full h-6 w-6 object-cover"
               />
-              <span className="hover:text-blue-500 dark:hover:text-blue-400 no-underline text-gray-700 dark:text-gray-200">
-                {author.userName}
+              <span className="text-sm text-white">
+                {capitalizeFirstLetter(author.userName)}
               </span>
             </div>
-            {/* </Link> */}
-            {createdAt && (
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {formatDate(createdAt)} · {calculateReadTime(content)}
-              </div>
-            )}
+
+            {/* Likes and Comments */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-300 flex items-center">
+                <HeartIcon size={20} className="mr-1" />
+                {formatNumber(likeCount)}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-300 flex items-center">
+                <MessageCircle size={20} className="mr-1" />
+                {formatNumber(commentCount)}
+              </span>
+            </div>
           </div>
         </div>
       </div>
