@@ -46,7 +46,7 @@ export default function HeroSection({ posts }) {
                     priority
                   />
                   <div className="absolute top-24 left-8 z-10">
-                    <CategoryButton category="Trending Blogs" active={true} />
+                    <CategoryButton category="Trending" active={true} />
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-8 text-white">
                     <h1 className="text-4xl font-bold mb-4">{post.title}</h1>

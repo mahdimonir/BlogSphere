@@ -1,7 +1,7 @@
 const GoogleButton = () => {
   return (
     <div className="w-full flex justify-center">
-      <div className="h-[46px] cursor-pointer border border-blue-100 flex items-center gap-2 px-3 rounded my-2 bg-[rgba(210,227,252,0.3)]">
+      <div className="h-[46px] cursor-pointer border border-blue-100 flex items-center gap-2 px-3 rounded my-2 text-gray-900 dark:text-gray-50 bg-[rgba(210,227,252,0.3)]">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           x="0px"
