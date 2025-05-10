@@ -2,26 +2,26 @@
 
 import Error from "@/app/components/Error";
 import Loading from "@/app/components/Loading";
-import PostCard from "@/app/components/PostCard";
+import UserCard from "@/app/components/UserCard";
 import axiosInstance from "@/app/utils/axiosConfig";
 import { useEffect, useState } from "react";
 
-export default function PostsPage() {
-  const [posts, setPosts] = useState([]); // Default to an empty array
+export default function UsersPage() {
+  const [users, setUsers] = useState([]); // Default to an empty array
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchPosts();
+    fetchUsers();
   }, []);
 
-  const fetchPosts = async () => {
+  const fetchUsers = async () => {
     try {
-      const response = await axiosInstance.get("/posts");
-      const fetchedPosts = response.data?.data?.posts || [];
-      setPosts(fetchedPosts);
+      const response = await axiosInstance.get("/users");
+      const fetchedUsers = response.data?.data || [];
+      setUsers(fetchedUsers);
     } catch (err) {
-      setError(err.response?.data?.message || "Error fetching posts");
+      setError(err.response?.data?.message || "Error fetching users");
     } finally {
       setLoading(false);
     }
@@ -42,21 +42,22 @@ export default function PostsPage() {
             {error}
           </p>
         )}
+
         <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">
-          All Posts
+          All Users
         </h2>
-        {posts.length > 0 ? (
+        {users.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map(
-              (post) => (
-                console.log("posts", post),
-                (<PostCard key={post._id} post={post} />)
+            {users.map(
+              (user) => (
+                console.log("users", user),
+                (<UserCard key={user._id} user={user} />)
               )
             )}
           </div>
         ) : (
           <p className="text-gray-600 dark:text-gray-300 text-center">
-            No posts available.
+            No users available.
           </p>
         )}
       </main>

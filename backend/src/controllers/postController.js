@@ -54,7 +54,6 @@ const createPost = asyncHandler(async (req, res) => {
     author: req.userId,
   });
   await post.save();
-  // Corrected populate syntax
   await post.populate("author", "userName avatar");
 
   return res
@@ -78,7 +77,7 @@ const updatePost = asyncHandler(async (req, res) => {
   const imageFile = req.files?.image?.[0];
   if (imageFile) {
     if (post.image) {
-      const deleteResult = await deleteFileFromCloudinary(post.image);
+      await deleteFileFromCloudinary(post.image);
     }
     const image = await uploadOnCloudinary(imageFile.path);
     throwIf(!image?.url, new ValidationError("Image upload failed"));
@@ -127,7 +126,7 @@ const deletePost = asyncHandler(async (req, res) => {
   );
 
   if (inActivePost.image) {
-    const deleteResult = await deleteFileFromCloudinary(inActivePost.image);
+    await deleteFileFromCloudinary(inActivePost.image);
   }
 
   await Comment.deleteMany({ post: id });
@@ -142,8 +141,8 @@ const deletePost = asyncHandler(async (req, res) => {
 // Get paginated posts with comments and likes
 const getPosts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, search } = req.query;
+  const userId = req.userId; // From authentication middleware
 
-  // Fetch posts with basic details
   const matchStage = search
     ? { title: { $regex: search, $options: "i" }, isSuspended: false }
     : { isSuspended: false };
@@ -244,7 +243,7 @@ const getPosts = asyncHandler(async (req, res) => {
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -296,6 +295,22 @@ const getPosts = asyncHandler(async (req, res) => {
             },
           },
         },
+        isLiked: userId
+          ? {
+              $anyElementTrue: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    $eq: [
+                      "$$like.likedBy._id",
+                      new mongoose.Types.ObjectId(userId),
+                    ],
+                  },
+                },
+              },
+            }
+          : false,
       },
     },
     {
@@ -314,11 +329,12 @@ const getPosts = asyncHandler(async (req, res) => {
         commentCount: { $size: "$comments" },
         comments: 1,
         likes: 1,
+        isLiked: 1,
       },
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -336,13 +352,11 @@ const getPosts = asyncHandler(async (req, res) => {
     const commentMap = {};
     const topLevelComments = [];
 
-    // Initialize comments with empty replies array
     post.comments.forEach((comment) => {
-      comment.replies = []; // Ensure replies is an array
+      comment.replies = [];
       commentMap[comment._id.toString()] = comment;
     });
 
-    // Build the tree
     post.comments.forEach((comment) => {
       if (!comment.parentComment) {
         topLevelComments.push(comment);
@@ -354,7 +368,6 @@ const getPosts = asyncHandler(async (req, res) => {
       }
     });
 
-    // Update post comments to only include top-level comments
     post.comments = topLevelComments;
     return post;
   });
@@ -376,6 +389,7 @@ const getPosts = asyncHandler(async (req, res) => {
 // Get user's own posts
 const getMyPosts = asyncHandler(async (req, res) => {
   const { search } = req.query;
+  const userId = req.userId;
 
   const matchStage = search
     ? {
@@ -484,7 +498,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -536,6 +550,22 @@ const getMyPosts = asyncHandler(async (req, res) => {
             },
           },
         },
+        isLiked: userId
+          ? {
+              $anyElementTrue: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    $eq: [
+                      "$$like.likedBy._id",
+                      new mongoose.Types.ObjectId(userId),
+                    ],
+                  },
+                },
+              },
+            }
+          : false,
       },
     },
     {
@@ -554,11 +584,12 @@ const getMyPosts = asyncHandler(async (req, res) => {
         commentCount: { $size: "$comments" },
         comments: 1,
         likes: 1,
+        isLiked: 1,
       },
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -570,7 +601,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
     const topLevelComments = [];
 
     post.comments.forEach((comment) => {
-      comment.replies = []; // Ensure replies is an array
+      comment.replies = [];
       commentMap[comment._id.toString()] = comment;
     });
 
@@ -596,6 +627,8 @@ const getMyPosts = asyncHandler(async (req, res) => {
 // Get a single post by ID
 const getPost = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const userId = req.userId;
+
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new NotFoundError("Invalid post ID");
   }
@@ -696,7 +729,7 @@ const getPost = asyncHandler(async (req, res) => {
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -748,6 +781,22 @@ const getPost = asyncHandler(async (req, res) => {
             },
           },
         },
+        isLiked: userId
+          ? {
+              $anyElementTrue: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    $eq: [
+                      "$$like.likedBy._id",
+                      new mongoose.Types.ObjectId(userId),
+                    ],
+                  },
+                },
+              },
+            }
+          : false,
       },
     },
     {
@@ -766,11 +815,12 @@ const getPost = asyncHandler(async (req, res) => {
         commentCount: { $size: "$comments" },
         comments: 1,
         likes: 1,
+        isLiked: 1,
       },
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
   ]);
@@ -780,18 +830,15 @@ const getPost = asyncHandler(async (req, res) => {
     throw new NotFoundError("Post not found");
   }
 
-  // Build comment tree for the post
   const post = result[0];
   const commentMap = {};
   const topLevelComments = [];
 
-  // Initialize comments with empty replies array
   post.comments.forEach((comment) => {
-    comment.replies = []; // Ensure replies is an array
+    comment.replies = [];
     commentMap[comment._id.toString()] = comment;
   });
 
-  // Build the tree
   post.comments.forEach((comment) => {
     if (!comment.parentComment) {
       topLevelComments.push(comment);
@@ -803,7 +850,6 @@ const getPost = asyncHandler(async (req, res) => {
     }
   });
 
-  // Update post comments to only include top-level comments
   post.comments = topLevelComments;
 
   return res
