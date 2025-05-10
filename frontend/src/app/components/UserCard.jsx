@@ -19,8 +19,8 @@ export default function UserCard({ user, onClick }) {
       : avatar || Demo_Image;
 
   return (
-    <Link href={`/profile/${_id}`} onClick={onClick}>
-      <div className="rounded-lg overflow-hidden bg-black text-white transition-shadow hover:shadow-lg">
+    <Link href={`/profile/${userName}`} onClick={onClick}>
+      <div className="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-lg">
         {/* Avatar Section */}
         <div className="relative">
           <Image
@@ -32,7 +32,7 @@ export default function UserCard({ user, onClick }) {
             unoptimized
           />
           <div className="absolute top-3 left-3">
-            <span className="bg-white text-black py-1 px-3 rounded-full text-xs font-medium">
+            <span className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-3 rounded-full text-xs font-medium">
               {capitalizeFirstLetter(role)}
             </span>
           </div>
@@ -46,7 +46,9 @@ export default function UserCard({ user, onClick }) {
           </h3>
 
           {/* Email */}
-          <p className="text-gray-300 text-sm mb-4 line-clamp-2">{email}</p>
+          <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
+            {email}
+          </p>
         </div>
       </div>
     </Link>
