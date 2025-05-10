@@ -110,29 +110,29 @@ const updatePost = asyncHandler(async (req, res) => {
 // Delete a post and associated comments/likes
 const deletePost = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const inActivePost = await Post.findOneAndUpdate(
-    { _id: id },
-    { $set: { isSuspended: true } },
-    { new: true }
-  );
+  console.log("Attempting to delete post with ID:", id);
+
+  const post = await Post.findById(id);
+  throwIf(!post, new NotFoundError("Post not found"));
   throwIf(
-    !inActivePost || inActivePost.isSuspended,
-    new NotFoundError("Post not found")
-  );
-  throwIf(
-    inActivePost.author._id.toString() !==
+    post.author._id.toString() !==
       (req.userId.toString ? req.userId.toString() : req.userId),
     new ForbiddenError("Unauthorized")
   );
 
-  if (inActivePost.image) {
-    await deleteFileFromCloudinary(inActivePost.image);
+  if (post.image) {
+    console.log("Deleting image from Cloudinary:", post.image);
+    await deleteFileFromCloudinary(post.image);
   }
 
+  console.log("Deleting comments for post:", id);
   await Comment.deleteMany({ post: id });
+  console.log("Deleting likes for post:", id);
   await Like.deleteMany({ post: id });
+  console.log("Deleting post from database:", id);
   await Post.findByIdAndDelete(id);
 
+  console.log("Post deleted successfully:", id);
   return res
     .status(200)
     .json(new ApiResponse(200, null, "Post deleted successfully"));
