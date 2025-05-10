@@ -55,12 +55,16 @@ const toggleLike = asyncHandler(async (req, res) => {
       $pull: { likes: existingLike._id },
     });
 
+    // Fetch updated like count
+    const updatedTarget = await Model.findById(targetId).lean();
+    const likeCount = updatedTarget.likes.length;
+
     return res
       .status(200)
       .json(
         new ApiResponse(
           200,
-          null,
+          { isLiked: false, likeCount },
           `${isPost ? "Post" : "Comment"} unliked successfully`
         )
       );
@@ -73,6 +77,10 @@ const toggleLike = asyncHandler(async (req, res) => {
     await like.save();
 
     await Model.findByIdAndUpdate(targetId, { $push: { likes: like._id } });
+
+    // Fetch updated like count
+    const updatedTarget = await Model.findById(targetId).lean();
+    const likeCount = updatedTarget.likes.length;
 
     // Fetch the like with populated likedBy (including userName and avatar)
     const populatedLike = await Like.findById(like._id)
@@ -87,6 +95,8 @@ const toggleLike = asyncHandler(async (req, res) => {
         userName: populatedLike.likedBy.userName,
         avatar: populatedLike.likedBy.avatar,
       },
+      isLiked: true,
+      likeCount,
     };
 
     return res
