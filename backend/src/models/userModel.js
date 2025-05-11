@@ -56,6 +56,19 @@ const userSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    posts: [{ type: Schema.Types.ObjectId, ref: "Post" }],
+    followers: [
+      {
+        _id: { type: Schema.Types.ObjectId, ref: "User" },
+        userName: { type: String, required: true },
+      },
+    ],
+    following: [
+      {
+        _id: { type: Schema.Types.ObjectId, ref: "User" },
+        userName: { type: String, required: true },
+      },
+    ],
     otp: {
       type: String,
     },
@@ -87,6 +100,11 @@ userSchema.index({ followers: 1 });
 userSchema.plugin(mongooseAggregatePaginate);
 // Hash password before saving
 userSchema.pre("save", async function (next) {
+  try {
+    this.updatedAt = Date.now();
+  } finally {
+    next();
+  }
   if (!this.isModified("password")) return next();
 
   if (

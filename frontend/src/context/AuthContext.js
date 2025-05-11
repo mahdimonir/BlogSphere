@@ -23,6 +23,7 @@ export function AuthProvider({ children }) {
             _id: userData._id,
             name: userData.name,
             userName: userData.userName,
+            avatar: userData.avatar,
             role: userData.role || "user",
           });
           localStorage.setItem("user", JSON.stringify(userData));

@@ -36,7 +36,6 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window !== "undefined" && window.localStorage) {
       const storedRememberMe = localStorage.getItem("rememberMe") === "true";
-      console.log("Initial rememberMe from localStorage:", storedRememberMe);
       setRememberMe(storedRememberMe);
     }
   }, []);
@@ -44,7 +43,6 @@ export default function LoginPage() {
   const handleRememberMeChange = () => {
     const newValue = !rememberMe;
     setRememberMe(newValue);
-    console.log("rememberMe toggled to:", newValue);
     if (typeof window !== "undefined" && window.localStorage) {
       localStorage.setItem("rememberMe", newValue.toString());
       if (!newValue) {

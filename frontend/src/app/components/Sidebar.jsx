@@ -1,40 +1,49 @@
-"use client"; // Required to use hooks like usePathname
+"use client";
 
+import { useAuth } from "@/context/AuthContext";
+import { Edit, FileText, Home, Plus, Shield } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 export default function Sidebar() {
-    const pathname = usePathname();
+  const { user } = useAuth();
 
-    const links = [
-        { name: "My Account", path: "/profile" },
-        { name: "Create a blog", path: "/create-blog" },
-        { name: "Manage", path: "/manage" },
-        { name: "Draft", path: "/draft" },
-        { name: "Pinned", path: "/pinned" },
-        { name: "Most popular", path: "/popular" },
-    ];
-
-    return (
-        <aside className="w-64 min-h-screen bg-black text-white p-6 flex flex-col justify-between top-0 left-0">
-            <div>
-                <h2 className="text-2xl font-bold mb-8">BlogSphere</h2>
-                <nav className="space-y-4">
-                    {links.map((link, idx) => (
-                        <Link
-                            key={idx}
-                            href={link.path}
-                            className={`block transition px-2 py-1 rounded ${
-                                pathname === link.path
-                                    ? "bg-gray-800 text-purple-400"
-                                    : "hover:text-purple-400"
-                            }`}
-                        >
-                            {link.name}
-                        </Link>
-                    ))}
-                </nav>
-            </div>
-        </aside>
-    );
+  return (
+    <div className="w-64 bg-gray-100 dark:bg-gray-800 p-4 h-screen fixed">
+      <h2 className="text-xl font-bold mb-6">Dashboard</h2>
+      <nav className="space-y-2">
+        <Link
+          href="/profile"
+          className="flex items-center p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+        >
+          <Home className="h-5 w-5 mr-2" /> Profile
+        </Link>
+        <Link
+          href="/profile/posts"
+          className="flex items-center p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+        >
+          <FileText className="h-5 w-5 mr-2" /> Posts
+        </Link>
+        <Link
+          href="/profile/create"
+          className="flex items-center p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+        >
+          <Plus className="h-5 w-5 mr-2" /> Create Post
+        </Link>
+        <Link
+          href="/profile/edit"
+          className="flex items-center p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+        >
+          <Edit className="h-5 w-5 mr-2" /> Edit Profile
+        </Link>
+        {user?.role === "admin" && (
+          <Link
+            href="/profile/suspended"
+            className="flex items-center p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <Shield className="h-5 w-5 mr-2" /> Suspended
+          </Link>
+        )}
+      </nav>
+    </div>
+  );
 }
