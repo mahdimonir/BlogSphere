@@ -2,27 +2,53 @@ import mongoose from "mongoose";
 import { Comment } from "../models/commentModel.js";
 import { Post } from "../models/postModel.js";
 import { User } from "../models/userModel.js";
-import { NotFoundError, ValidationError } from "../utils/ApiError.js";
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { throwIf } from "../utils/throwIf.js";
 
 // Utility function to toggle suspension
-const toggleSuspension = async (Model, id, entityName, select = "") => {
-  throwIf(!id, new ValidationError(`${entityName} ID is required`));
+const toggleSuspension = async (
+  Model,
+  identifier,
+  entityName,
+  select = "",
+  isId = true
+) => {
   throwIf(
-    !mongoose.Types.ObjectId.isValid(id),
-    new ValidationError(`Invalid ${entityName} ID: ${id}`)
+    !identifier,
+    new ValidationError(`${entityName} identifier is required`)
   );
 
-  const entity = await Model.findById(id).select(select);
+  let entity;
+  if (isId) {
+    throwIf(
+      !mongoose.Types.ObjectId.isValid(identifier),
+      new ValidationError(`Invalid ${entityName} ID: ${identifier}`)
+    );
+    entity = await Model.findById(identifier).select(select);
+  } else {
+    throwIf(
+      typeof identifier !== "string" || identifier.trim() === "",
+      new ValidationError(`Invalid ${entityName} userName: ${identifier}`)
+    );
+    entity = await Model.findOne({ userName: identifier }).select(select);
+  }
+
   throwIf(!entity, new NotFoundError(`${entityName} not found`));
 
-  entity.isSuspended = !entity.isSuspended;
+  entity.isSuspended = !entity.isSuspended; // Toggle boolean (true/false)
   await entity.save();
 
   return {
-    entity,
+    entity: {
+      ...entity.toObject(),
+      isSuspended: entity.isSuspended, // Explicitly include isSuspended
+    },
     message: `${entityName} ${
       entity.isSuspended ? "suspended" : "unsuspended"
     } successfully`,
@@ -31,12 +57,25 @@ const toggleSuspension = async (Model, id, entityName, select = "") => {
 
 // Toggle user suspension - admin only
 const toggleUserSuspension = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
+  const { userName } = req.params;
+  const currentUser = req.user;
+
+  throwIf(!currentUser, new NotFoundError("Current user not found"));
+  throwIf(
+    currentUser.role !== "admin",
+    new ForbiddenError("Only admins can suspend users")
+  );
+  throwIf(
+    currentUser.userName === userName,
+    new ValidationError("Cannot suspend yourself")
+  );
+
   const { entity, message } = await toggleSuspension(
     User,
-    userId,
+    userName,
     "User",
-    "-password"
+    "-password",
+    false
   );
 
   return res.status(200).json(new ApiResponse(200, entity, message));
@@ -77,17 +116,9 @@ const getSuspendedUsers = asyncHandler(async (req, res) => {
       }
     : { isSuspended: true };
 
-  // Debug: Log all suspended users
-  const suspendedUsers = await User.find({ isSuspended: true }).select(
-    "userName isVerified"
-  );
-
-  // Count matching documents
-  const matchCount = await User.countDocuments(matchStage);
-
   const aggregate = User.aggregate([
     { $match: matchStage },
-    { $project: { password: 0 } }, // Equivalent to select("-password")
+    { $project: { password: 0 } },
     { $sort: { createdAt: -1 } },
   ]);
 
@@ -96,12 +127,7 @@ const getSuspendedUsers = asyncHandler(async (req, res) => {
     limit: parseInt(limit, 10),
   };
 
-  let result;
-  try {
-    result = await User.aggregatePaginate(aggregate, options);
-  } catch (error) {
-    throw new Error("Failed to paginate suspended users");
-  }
+  const result = await User.aggregatePaginate(aggregate, options);
 
   return res.status(200).json(
     new ApiResponse(
@@ -133,9 +159,7 @@ const getSuspendedPosts = asyncHandler(async (req, res) => {
         localField: "author",
         foreignField: "_id",
         as: "author",
-        pipeline: [
-          { $project: { userName: 1, _id: 1 } }, // Include only userName and _id
-        ],
+        pipeline: [{ $project: { userName: 1, _id: 1 } }],
       },
     },
     { $unwind: "$author" },
@@ -155,9 +179,7 @@ const getSuspendedPosts = asyncHandler(async (req, res) => {
               localField: "author",
               foreignField: "_id",
               as: "author",
-              pipeline: [
-                { $project: { userName: 1, _id: 1 } }, // Include only userName and _id
-              ],
+              pipeline: [{ $project: { userName: 1, _id: 1 } }],
             },
           },
           { $unwind: "$author" },
@@ -202,6 +224,7 @@ const getSuspendedPosts = asyncHandler(async (req, res) => {
         tags: 1,
         status: 1,
         createdAt: 1,
+        isSuspended: 1,
         "author.userName": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
@@ -275,9 +298,7 @@ const getSuspendedComments = asyncHandler(async (req, res) => {
         localField: "author",
         foreignField: "_id",
         as: "author",
-        pipeline: [
-          { $project: { userName: 1, _id: 1 } }, // Include only userName and _id
-        ],
+        pipeline: [{ $project: { userName: 1, _id: 1 } }],
       },
     },
     { $unwind: "$author" },
@@ -298,6 +319,7 @@ const getSuspendedComments = asyncHandler(async (req, res) => {
         post: 1,
         parentComment: 1,
         replies: 1,
+        isSuspended: 1,
         likeCount: { $size: "$likes" },
       },
     },
@@ -309,12 +331,7 @@ const getSuspendedComments = asyncHandler(async (req, res) => {
     limit: parseInt(limit, 10),
   };
 
-  let result;
-  try {
-    result = await Comment.aggregatePaginate(aggregate, options);
-  } catch (error) {
-    throw new Error("Failed to paginate suspended comments");
-  }
+  const result = await Comment.aggregatePaginate(aggregate, options);
 
   result.docs.forEach((comment) => {
     comment.replies = [];

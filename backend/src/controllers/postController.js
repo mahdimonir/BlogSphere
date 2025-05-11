@@ -13,6 +13,7 @@ import {
   deleteFileFromCloudinary,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
+import { createNotification } from "../utils/notificationHelper.js";
 import { throwIf } from "../utils/throwIf.js";
 
 // Create a new post
@@ -55,6 +56,19 @@ const createPost = asyncHandler(async (req, res) => {
   });
   await post.save();
   await post.populate("author", "userName avatar");
+
+  // Notify followers (example)
+  const followers = await mongoose
+    .model("User")
+    .find({ following: req.userId });
+  for (const follower of followers) {
+    await createNotification({
+      userId: follower._id,
+      message: `${post.author.userName} created a new post: ${title}`,
+      type: "post",
+      link: `/posts/${post._id}`,
+    });
+  }
 
   return res
     .status(201)
@@ -226,6 +240,22 @@ const getPosts = asyncHandler(async (req, res) => {
                   },
                 },
               },
+              isLiked: userId
+                ? {
+                    $anyElementTrue: {
+                      $map: {
+                        input: "$likes",
+                        as: "like",
+                        in: {
+                          $eq: [
+                            "$$like.likedBy._id",
+                            new mongoose.Types.ObjectId(userId),
+                          ],
+                        },
+                      },
+                    },
+                  }
+                : false,
             },
           },
           {
@@ -239,6 +269,7 @@ const getPosts = asyncHandler(async (req, res) => {
               replies: 1,
               likeCount: { $size: "$likes" },
               likes: 1,
+              isSuspended: 1,
             },
           },
           {
@@ -320,8 +351,10 @@ const getPosts = asyncHandler(async (req, res) => {
         image: 1,
         catagory: 1,
         tags: 1,
+        contentTable: 1,
         status: 1,
         createdAt: 1,
+        isSuspended: 1,
         "author.userName": 1,
         "author.avatar": 1,
         "author._id": 1,
@@ -481,6 +514,22 @@ const getMyPosts = asyncHandler(async (req, res) => {
                   },
                 },
               },
+              isLiked: userId
+                ? {
+                    $anyElementTrue: {
+                      $map: {
+                        input: "$likes",
+                        as: "like",
+                        in: {
+                          $eq: [
+                            "$$like.likedBy._id",
+                            new mongoose.Types.ObjectId(userId),
+                          ],
+                        },
+                      },
+                    },
+                  }
+                : false,
             },
           },
           {
@@ -494,6 +543,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
               replies: 1,
               likeCount: { $size: "$likes" },
               likes: 1,
+              isSuspended: 1,
             },
           },
           {
@@ -575,8 +625,10 @@ const getMyPosts = asyncHandler(async (req, res) => {
         image: 1,
         catagory: 1,
         tags: 1,
+        contentTable: 1,
         status: 1,
         createdAt: 1,
+        isSuspended: 1,
         "author.userName": 1,
         "author.avatar": 1,
         "author._id": 1,
@@ -712,6 +764,22 @@ const getPost = asyncHandler(async (req, res) => {
                   },
                 },
               },
+              isLiked: userId
+                ? {
+                    $anyElementTrue: {
+                      $map: {
+                        input: "$likes",
+                        as: "like",
+                        in: {
+                          $eq: [
+                            "$$like.likedBy._id",
+                            new mongoose.Types.ObjectId(userId),
+                          ],
+                        },
+                      },
+                    },
+                  }
+                : false,
             },
           },
           {
@@ -725,6 +793,7 @@ const getPost = asyncHandler(async (req, res) => {
               replies: 1,
               likeCount: { $size: "$likes" },
               likes: 1,
+              isSuspended: 1,
             },
           },
           {
@@ -806,8 +875,10 @@ const getPost = asyncHandler(async (req, res) => {
         image: 1,
         catagory: 1,
         tags: 1,
+        contentTable: 1,
         status: 1,
         createdAt: 1,
+        isSuspended: 1,
         "author.userName": 1,
         "author.avatar": 1,
         "author._id": 1,

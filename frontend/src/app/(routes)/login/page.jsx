@@ -26,7 +26,6 @@ export default function LoginPage() {
   const router = useRouter();
   const { setUser } = useAuth();
 
-  // Initialize useForm
   const {
     register,
     handleSubmit,
@@ -55,16 +54,26 @@ export default function LoginPage() {
     }
   };
 
-  const onLogin = async ({ email, password }) => {
+  const isEmail = (input) => {
+    // Basic email regex: checks for @ and domain
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+  };
+
+  const onLogin = async ({ credential, password }) => {
     try {
       setServerError("");
       setLoading(true);
 
-      const res = await axiosInstance.post(
-        "/auth/login",
-        { email, password, rememberMe },
-        { withCredentials: true }
-      );
+      // Determine if credential is email or username
+      const payload = {
+        [isEmail(credential) ? "email" : "userName"]: credential,
+        password,
+        rememberMe,
+      };
+
+      const res = await axiosInstance.post("/auth/login", payload, {
+        withCredentials: true,
+      });
 
       if (res.status === 200 && res.data.success) {
         const userData = res.data.data.user;
@@ -73,8 +82,8 @@ export default function LoginPage() {
         if (typeof window !== "undefined" && window.localStorage) {
           localStorage.setItem("rememberMe", rememberMe.toString());
           if (rememberMe) {
-            localStorage.setItem("user", JSON.stringify(res.data.data.user));
-            localStorage.setItem("token", res.data.data.accessToken);
+            localStorage.setItem("user", JSON.stringify(userData));
+            localStorage.setItem("token", token);
           } else {
             localStorage.removeItem("user");
             localStorage.removeItem("token");
@@ -90,7 +99,9 @@ export default function LoginPage() {
       }
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message || err.message || "Something went wrong";
+        err.response?.data?.message ||
+        err.message ||
+        "Invalid email/username or password";
       setServerError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -98,7 +109,6 @@ export default function LoginPage() {
     }
   };
 
-  // Request OTP for Forgot Password
   const onRequestOtp = async ({ email }) => {
     try {
       setServerError("");
@@ -121,7 +131,7 @@ export default function LoginPage() {
       }
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message || err.message || "Something went wrong";
+        err.response?.data?.message || err.message || "Failed to send OTP";
       setServerError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -129,7 +139,6 @@ export default function LoginPage() {
     }
   };
 
-  // Reset Password
   const onResetPassword = async ({ password, confirmPassword }) => {
     try {
       setServerError("");
@@ -169,7 +178,6 @@ export default function LoginPage() {
     }
   };
 
-  // Resend OTP
   const resendOtp = async () => {
     try {
       setServerError("");
@@ -198,7 +206,6 @@ export default function LoginPage() {
     }
   };
 
-  // OTP Input Handling
   const handleOtpChange = (index, value) => {
     if (!/^[0-9]?$/.test(value)) return;
 
@@ -217,7 +224,6 @@ export default function LoginPage() {
     }
   };
 
-  // Timer for Resend OTP
   useEffect(() => {
     let timeout;
     if (showOtpForm && timer > 0 && !canResend) {
@@ -230,13 +236,12 @@ export default function LoginPage() {
     return () => clearTimeout(timeout);
   }, [timer, showOtpForm, canResend]);
 
-  // Check if already authenticated
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const res = await axiosInstance.get("/users/profile/me");
         if (res.status === 200) {
-          router.push("/"); // Redirect if authenticated
+          router.push("/");
         }
       } catch {
         // Not authenticated, no action needed
@@ -284,30 +289,28 @@ export default function LoginPage() {
 
               <div className="flex items-center my-5 text-gray-400 dark:text-gray-500 text-sm">
                 <div className="flex-1 border-t border-gray-300 dark:border-gray-600" />
-                <span className="px-3">or Sign in with Email</span>
+                <span className="px-3">or Sign in with Email or Username</span>
                 <div className="flex-1 border-t border-gray-300 dark:border-gray-600" />
               </div>
 
               <form onSubmit={handleSubmit(onLogin)}>
                 <label className="block text-gray-700 dark:text-gray-300 mb-1">
-                  Email
+                  Email or Username
                 </label>
                 <input
-                  type="email"
-                  placeholder="support@blogsphere.com"
+                  type="text"
+                  placeholder="Enter email or username"
                   className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                   disabled={loading}
-                  aria-label="Email address"
-                  {...register("email", {
-                    required: "Email is required",
-                    pattern: {
-                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      message: "Invalid email address",
-                    },
+                  aria-label="Email or username"
+                  {...register("credential", {
+                    required: "Email or username is required",
                   })}
                 />
-                {errors.email && (
-                  <p className="text-red-500 text-sm">{errors.email.message}</p>
+                {errors.credential && (
+                  <p className="text-red-500 text-sm">
+                    {errors.credential.message}
+                  </p>
                 )}
 
                 <label className="block text-gray-700 dark:text-gray-300 mb-1 mt-4">
@@ -522,7 +525,7 @@ export default function LoginPage() {
 
               <div className="text-center text-sm mt-4">
                 <button
-                  className="text-blue-600~ cursor-pointer disabled:opacity-50"
+                  className="text-blue-600 cursor-pointer disabled:opacity-50"
                   disabled={!canResend || loading}
                   onClick={resendOtp}
                 >

@@ -31,6 +31,22 @@ const userSchema = new Schema(
     avatar: {
       type: String, // cloudinary url
     },
+    bio: {
+      type: String,
+      trim: true,
+    },
+    following: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    followers: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     role: {
       type: String,
       enum: ["user", "admin"],
@@ -62,6 +78,11 @@ const userSchema = new Schema(
   },
   { timestamps: true }
 );
+
+userSchema.index({ userName: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ following: 1 });
+userSchema.index({ followers: 1 });
 
 userSchema.plugin(mongooseAggregatePaginate);
 // Hash password before saving

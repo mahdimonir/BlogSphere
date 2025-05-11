@@ -27,8 +27,8 @@ router.route("/refresh-token").post(refreshAccessToken);
 
 // Protected routes
 router.route("/logout").post(verifyJWT, logout);
-router.route("/update-user").patch(verifyJWT, updateUserInfo);
-router.route("/update-avatar").patch(verifyJWT, updateUserAvatar);
-router.route("/delete-user").delete(verifyJWT, deleteUser);
+router.route("/update").patch(verifyJWT, updateUserInfo);
+router.route("/avatar").patch(verifyJWT, updateUserAvatar);
+router.route("/delete").delete(verifyJWT, deleteUser);
 
 export default router;

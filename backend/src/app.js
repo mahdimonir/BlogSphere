@@ -19,6 +19,7 @@ import adminRouter from "./routes/adminRoutes.js";
 import authRouter from "./routes/authRoutes.js";
 import commentRouter from "./routes/commentRoutes.js";
 import likeRouter from "./routes/likeRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import postRouter from "./routes/postRoutes.js";
 import searchRouter from "./routes/searchRoutes.js";
 import userRouter from "./routes/userRoutes.js";
@@ -87,6 +88,7 @@ app.use("/api/v1/posts", postRouter);
 app.use("/api/v1/comments", commentRouter);
 app.use("/api/v1/likes", likeRouter);
 app.use("/api/v1/search", searchRouter);
+app.use("/api/v1/notifications", notificationRoutes);
 
 // Root route
 app.get("/", (req, res) => {

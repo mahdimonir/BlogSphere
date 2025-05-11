@@ -1,14 +1,17 @@
 import { Post } from "../models/postModel.js";
 import { User } from "../models/userModel.js";
-import { NotFoundError } from "../utils/ApiError.js";
+import { NotFoundError, ValidationError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { createNotification } from "../utils/notificationHelper.js";
 import { throwIf } from "../utils/throwIf.js";
 
 const getSingleUser = asyncHandler(async (req, res) => {
   const userName = req.params.userName;
 
-  const user = await User.findOne({ userName }).select("-password");
+  const user = await User.findOne({ userName }).select(
+    "-password -refreshToken"
+  );
 
   throwIf(!user, new NotFoundError("User not found"));
 
@@ -90,6 +93,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          name: "$$user.name",
                         },
                       },
                     },
@@ -102,6 +106,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.name": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
@@ -112,7 +117,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -157,6 +162,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    name: "$$user.name",
                   },
                 },
               },
@@ -175,6 +181,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
         status: 1,
         createdAt: 1,
         "author.userName": 1,
+        "author.name": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
@@ -184,7 +191,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -196,7 +203,7 @@ const getSingleUser = asyncHandler(async (req, res) => {
     const topLevelComments = [];
 
     post.comments.forEach((comment) => {
-      comment.replies = []; // Initialize as empty to avoid raw _ids
+      comment.replies = [];
       commentMap[comment._id.toString()] = comment;
     });
 
@@ -323,6 +330,7 @@ const getAllUser = asyncHandler(async (req, res) => {
                               in: {
                                 _id: "$$user._id",
                                 userName: "$$user.userName",
+                                name: "$$user.name",
                               },
                             },
                           },
@@ -335,6 +343,7 @@ const getAllUser = asyncHandler(async (req, res) => {
                   $project: {
                     content: 1,
                     "author.userName": 1,
+                    "author.name": 1,
                     "author._id": 1,
                     createdAt: 1,
                     parentComment: 1,
@@ -345,7 +354,7 @@ const getAllUser = asyncHandler(async (req, res) => {
                 },
                 {
                   $project: {
-                    likeUsers: 0, // Exclude likeUsers in a separate stage
+                    likeUsers: 0,
                   },
                 },
               ],
@@ -393,6 +402,7 @@ const getAllUser = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          name: "$$user.name",
                         },
                       },
                     },
@@ -411,6 +421,7 @@ const getAllUser = asyncHandler(async (req, res) => {
               status: 1,
               createdAt: 1,
               "author.userName": 1,
+              "author.name": 1,
               "author._id": 1,
               likeCount: { $size: "$likes" },
               commentCount: { $size: "$comments" },
@@ -420,7 +431,7 @@ const getAllUser = asyncHandler(async (req, res) => {
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
           { $sort: { createdAt: -1 } },
@@ -440,7 +451,7 @@ const getAllUser = asyncHandler(async (req, res) => {
       const topLevelComments = [];
 
       post.comments.forEach((comment) => {
-        comment.replies = []; // Initialize as empty
+        comment.replies = [];
         commentMap[comment._id.toString()] = comment;
       });
 
@@ -465,9 +476,11 @@ const getAllUser = asyncHandler(async (req, res) => {
 });
 
 const getUserProfile = asyncHandler(async (req, res) => {
-  const userName = req.userName;
+  const userName = req.user.userName;
 
-  const user = await User.findOne({ userName }).select("-password");
+  const user = await User.findOne({ userName }).select(
+    "-password -refreshToken"
+  );
 
   throwIf(!user, new NotFoundError("User not found"));
 
@@ -549,6 +562,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          name: "$$user.name",
                         },
                       },
                     },
@@ -561,6 +575,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.name": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
@@ -571,7 +586,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -616,6 +631,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    name: "$$user.name",
                   },
                 },
               },
@@ -634,6 +650,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
         status: 1,
         createdAt: 1,
         "author.userName": 1,
+        "author.name": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
@@ -643,7 +660,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -655,7 +672,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
     const topLevelComments = [];
 
     post.comments.forEach((comment) => {
-      comment.replies = []; // Initialize as empty
+      comment.replies = [];
       commentMap[comment._id.toString()] = comment;
     });
 
@@ -684,4 +701,60 @@ const getUserProfile = asyncHandler(async (req, res) => {
     );
 });
 
-export { getAllUser, getSingleUser, getUserProfile };
+const followUser = asyncHandler(async (req, res) => {
+  const { userName } = req.params;
+  const userId = req.userId;
+
+  throwIf(!userName, new ValidationError("Username is required"));
+
+  const targetUser = await User.findOne({ userName });
+  throwIf(!targetUser, new NotFoundError("User not found"));
+  throwIf(
+    targetUser._id.toString() === userId,
+    new ValidationError("Cannot follow yourself")
+  );
+
+  const currentUser = await User.findById(userId);
+  throwIf(!currentUser, new NotFoundError("Current user not found"));
+
+  const isFollowing = currentUser.following.includes(targetUser._id);
+
+  if (isFollowing) {
+    // Unfollow
+    await User.findByIdAndUpdate(userId, {
+      $pull: { following: targetUser._id },
+    });
+    await User.findByIdAndUpdate(targetUser._id, {
+      $pull: { followers: userId },
+    });
+  } else {
+    // Follow
+    await User.findByIdAndUpdate(userId, {
+      $push: { following: targetUser._id },
+    });
+    await User.findByIdAndUpdate(targetUser._id, {
+      $push: { followers: userId },
+    });
+
+    // Notify the followed user
+    await createNotification({
+      userId: targetUser._id,
+      message: `${req.user.userName} started following you`,
+      type: "follow",
+      link: `/users/${targetUser.userName}`,
+    });
+  }
+
+  const updatedUser = await User.findById(userId).select("following");
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { isFollowing: !isFollowing },
+        isFollowing ? "Unfollowed successfully" : "Followed successfully"
+      )
+    );
+});
+
+export { followUser, getAllUser, getSingleUser, getUserProfile };

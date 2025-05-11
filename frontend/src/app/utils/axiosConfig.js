@@ -4,38 +4,89 @@ import { refreshAccessToken } from "./auth";
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
-  withCredentials: true, // Include cookies in requests
+  withCredentials: true,
 });
 
-// Add a request interceptor to include the token in headers
+// Request interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token"); // Get token from localStorage
-    if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`; // Attach token to headers
+    if (process.env.NODE_ENV !== "production") {
+      console.log("Axios Request:", {
+        url: config.url,
+        method: config.method,
+        baseURL: config.baseURL,
+      });
+    }
+    // Check if running in browser environment
+    if (typeof window !== "undefined" && window.localStorage) {
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      }
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Axios Request Error:", error);
+    }
+    return Promise.reject(error);
+  }
 );
 
-// Add a response interceptor to handle token expiration
+// Response interceptor
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("Axios Response:", {
+        url: response.config.url,
+        status: response.status,
+      });
+    }
+    return response;
+  },
   async (error) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Axios Response Error:", {
+        url: error.config?.url,
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+    }
+
     const originalRequest = error.config;
 
-    // If the error is due to an expired access token
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true; // Prevent infinite retry loop
+    // Allow retry for 401 only once, skip for DELETE and repeated GET
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      originalRequest.method !== "delete" &&
+      !(
+        originalRequest.method === "get" &&
+        originalRequest.url.includes("/posts")
+      )
+    ) {
+      originalRequest._retry = true;
       try {
-        const newAccessToken = await refreshAccessToken();
-        localStorage.setItem("token", newAccessToken); // Update token in localStorage
-        originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
-        return axiosInstance(originalRequest); // Retry the original request
+        // Ensure refreshAccessToken is called only in browser
+        if (typeof window !== "undefined" && window.localStorage) {
+          const newAccessToken = await refreshAccessToken();
+          localStorage.setItem("token", newAccessToken);
+          originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
+          if (process.env.NODE_ENV !== "production") {
+            console.log(
+              "Retrying request with new token:",
+              originalRequest.url
+            );
+          }
+          return axiosInstance(originalRequest);
+        }
       } catch (err) {
         console.error("Failed to refresh token:", err);
-        localStorage.removeItem("token"); // Remove invalid token
+        if (typeof window !== "undefined" && window.localStorage) {
+          localStorage.removeItem("token");
+        }
         return Promise.reject(err);
       }
     }

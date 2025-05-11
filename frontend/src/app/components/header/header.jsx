@@ -6,9 +6,19 @@ import UserCard from "@/app/components/UserCard";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/server";
 import axios from "axios";
-import { AlignJustify, Bell, Moon, Search, Sun, X } from "lucide-react";
+import {
+  AlignJustify,
+  Bell,
+  ChevronDown,
+  Moon,
+  Search,
+  Sun,
+  X,
+} from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import Loading from "../Loading";
 
 export default function Header() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -19,8 +29,15 @@ export default function Header() {
   const [error, setError] = useState(null);
   const [model, setModel] = useState(false);
   const [dark, setDark] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const { user, logout, loading: authLoading } = useAuth();
   const dropdownRef = useRef(null);
+  const navDropdownRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const notificationRef = useRef(null);
 
   // Theme handling
   useEffect(() => {
@@ -110,11 +127,67 @@ export default function Header() {
     fetchData();
   }, [debounceQuery]);
 
-  // Close dropdown on outside click
+  // Fetch notifications
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user) {
+        setNotifications([]);
+        return;
+      }
+
+      try {
+        const response = await axios.get(`${API_URL}/notifications`, {
+          params: { page: 1, limit: 10 },
+          withCredentials: true,
+        });
+        setNotifications(response.data.data.notifications || []);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+        setNotifications([]);
+      }
+    };
+
+    fetchNotifications();
+  }, [user]);
+
+  // Mark notification as read
+  const markNotificationAsRead = async (id) => {
+    try {
+      await axios.patch(
+        `${API_URL}/notifications/${id}/read`,
+        {},
+        { withCredentials: true }
+      );
+      setNotifications(notifications.filter((n) => n._id !== id));
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setSearchTerm("");
+        setSearchOpen(false);
+      }
+      if (
+        navDropdownRef.current &&
+        !navDropdownRef.current.contains(event.target)
+      ) {
+        setNavOpen(false);
+      }
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target)
+      ) {
+        setModel(false);
+      }
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
+        setNotificationOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -129,89 +202,133 @@ export default function Header() {
     setModel(true);
   };
 
+  const toggleNavDropdown = () => {
+    setNavOpen((prev) => !prev);
+  };
+
+  const toggleNotificationDropdown = () => {
+    setNotificationOpen((prev) => !prev);
+  };
+
+  const toggleSearch = () => {
+    setSearchOpen((prev) => !prev);
+  };
+
   return (
-    <nav className="flex items-center sticky top-0 z-50 h-full justify-between py-1 shadow-xl bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-[1200px] px-3 w-full mx-auto flex my-2 items-center">
+    <nav className="sticky top-0 z-50 bg-gray-50 dark:bg-gray-900 shadow-xl">
+      <div className="max-w-[1200px] mx-auto px-3 py-2 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="text-lg font-bold text-blue-500">
           BlogSphere
         </Link>
 
-        {/* Search Bar (Centered) */}
-        <div
-          className="relative flex-1 max-w-[20rem] mx-auto sm:max-w-[24rem] md:max-w-[28rem]"
-          ref={dropdownRef}
-        >
-          <input
-            type="text"
-            placeholder={model ? "_" : "Search posts and users"}
-            className="w-full rounded-full py-2 px-4 bg-gray-100 text-sm text-gray-950 dark:text-gray-100 dark:bg-gray-700 focus:outline-none"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300" />
-          {searchTerm && (
-            <X
-              className="absolute right-8 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300 cursor-pointer"
-              onClick={() => setSearchTerm("")}
+        {/* Search (sm: Button, md: Search Bar) */}
+        <div className="flex-1 mx-4 hidden md:block">
+          <div className="relative max-w-[28rem] mx-auto" ref={dropdownRef}>
+            <input
+              type="text"
+              placeholder="Search posts and users"
+              className="w-full rounded-full py-2 px-4 bg-gray-100 text-sm text-gray-950 dark:text-gray-100 dark:bg-gray-700 focus:outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
-          )}
-
-          {/* Search Results Dropdown */}
-          {debounceQuery && (
-            <div className="absolute top-full left-0 w-full bg-white dark:bg-gray-900 shadow-lg rounded-lg mt-2 max-h-[400px] overflow-y-auto z-50 sm:w-[calc(100%+2rem)] sm:-left-4">
-              {loading ? (
-                <div className="p-4 text-center text-gray-600 dark:text-gray-300">
-                  Loading...
-                </div>
-              ) : error ? (
-                <div className="p-4 text-center text-red-500">{error}</div>
-              ) : users.length === 0 && posts.length === 0 ? (
-                <div className="p-4 text-center text-gray-600 dark:text-gray-300">
-                  No results found.
-                </div>
-              ) : (
-                <div className="p-4">
-                  {users.length > 0 && (
-                    <div className="mb-4">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                        Users
-                      </h3>
-                      {users.map((user) => (
-                        <div className="mb-2">
-                          <UserCard
-                            key={user._id}
-                            user={user}
-                            onClick={() => setSearchTerm("")}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {posts.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                        Posts
-                      </h3>
-                      {posts.map((post) => (
-                        <div className="mb-2">
-                          <PostCard
-                            key={post._id}
-                            post={post}
-                            compact
-                            onClick={() => setSearchTerm("")}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300" />
+            {searchTerm && (
+              <X
+                className="absolute right-8 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300 cursor-pointer"
+                onClick={() => setSearchTerm("")}
+              />
+            )}
+          </div>
+        </div>
+        <div className="md:hidden">
+          <button onClick={toggleSearch} className="p-1">
+            <Search className="h-5 w-5 text-gray-900 dark:text-gray-100" />
+          </button>
         </div>
 
-        {/* Right Side: Theme Toggle and User Actions */}
+        {/* Full-Screen Search (sm:) */}
+        {searchOpen && (
+          <div
+            className="absolute top-10 left-0 w-full h-screen bg-gray-50 dark:bg-gray-900 flex flex-col md:hidden"
+            ref={dropdownRef}
+          >
+            <div className="flex items-center p-3 border-b border-gray-200 dark:border-gray-700">
+              <input
+                type="text"
+                placeholder="Search posts and users"
+                className="flex-1 rounded-full py-2 px-4 bg-gray-100 text-sm text-gray-950 dark:text-gray-100 dark:bg-gray-700 focus:outline-none"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                autoFocus
+              />
+              <X
+                className="ml-2 h-5 w-5 text-gray-900 dark:text-gray-100 cursor-pointer"
+                onClick={() => {
+                  setSearchTerm("");
+                  setSearchOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Search Results Dropdown */}
+        {debounceQuery && (searchOpen || window.innerWidth >= 768) && (
+          <div className="absolute top-[60px] left-0 right-0 mx-auto w-full max-w-[28rem] min-w-[20rem] bg-white dark:bg-gray-900 shadow-lg rounded-lg mt-2 max-h-[400px] overflow-y-auto z-50">
+            {loading ? (
+              <Loading />
+            ) : error ? (
+              <div className="p-4 text-center text-red-500">{error}</div>
+            ) : users.length === 0 && posts.length === 0 ? (
+              <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                No results found.
+              </div>
+            ) : (
+              <div className="p-4">
+                {users.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                      Users
+                    </h3>
+                    {users.map((user) => (
+                      <div className="mb-2" key={user._id}>
+                        <UserCard
+                          user={user}
+                          onClick={() => {
+                            setSearchTerm("");
+                            setSearchOpen(false);
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {posts.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                      Posts
+                    </h3>
+                    {posts.map((post) => (
+                      <div className="mb-2" key={post._id}>
+                        <PostCard
+                          post={post}
+                          compact
+                          onClick={() => {
+                            setSearchTerm("");
+                            setSearchOpen(false);
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Right Side: Theme Toggle, Bell, and Mobile Menu Toggle */}
         <div className="flex items-center gap-3">
           {/* Theme Toggle */}
           <div
@@ -232,55 +349,242 @@ export default function Header() {
             </div>
           </div>
 
+          {/* Notification Bell */}
+          {!authLoading && user && (
+            <div className="relative" ref={notificationRef}>
+              <button onClick={toggleNotificationDropdown}>
+                <Bell className="h-5 w-5 text-gray-900 dark:text-gray-100" />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+              {notificationOpen && (
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-900 shadow-lg rounded-lg z-50 max-h-[300px] overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                      No notifications
+                    </div>
+                  ) : (
+                    <div className="p-4">
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification._id}
+                          className="mb-2 text-sm text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2"
+                        >
+                          <p>{notification.message}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(notification.createdAt).toLocaleString()}
+                          </p>
+                          <div className="flex gap-2">
+                            {notification.link && (
+                              <Link
+                                href={notification.link}
+                                className="text-xs text-blue-500 hover:text-blue-600"
+                                onClick={() => setNotificationOpen(false)}
+                              >
+                                View
+                              </Link>
+                            )}
+                            {!notification.isRead && (
+                              <button
+                                onClick={() =>
+                                  markNotificationAsRead(notification._id)
+                                }
+                                className="text-xs text-blue-500 hover:text-blue-600"
+                              >
+                                Mark as read
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* User Profile */}
+          {!authLoading && user && (
+            <Link
+              href="/profile"
+              className="border-2 w-7 h-7 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100"
+            >
+              <ProfileIcon className="h-6 w-6 p-0.5 text-gray-900 dark:text-gray-100" />
+            </Link>
+          )}
+
+          {/* Navigation Dropdown (Desktop) */}
+          <div className="relative hidden md:block" ref={navDropdownRef}>
+            <button
+              className="flex items-center text-sm text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400"
+              onClick={toggleNavDropdown}
+            >
+              Menu
+              <ChevronDown className="ml-1 h-4 w-4" />
+            </button>
+            {navOpen && (
+              <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-gray-900 shadow-lg rounded-lg z-50">
+                <Link
+                  href="/posts"
+                  className="block px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => setNavOpen(false)}
+                >
+                  Posts
+                </Link>
+                <Link
+                  href="/users"
+                  className="block px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => setNavOpen(false)}
+                >
+                  Users
+                </Link>
+                {user && (
+                  <>
+                    <Link
+                      href="/posts/create"
+                      className="block px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => setNavOpen(false)}
+                    >
+                      Create Post
+                    </Link>
+                  </>
+                )}
+                <Link
+                  href="/about"
+                  className="block px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => setNavOpen(false)}
+                >
+                  About
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* User Actions (Logout/Sign In) */}
+          {!authLoading && user ? (
+            <button
+              onClick={logout}
+              className="text-sm text-white bg-red-400 hover:bg-red-500 hover:shadow text-center px-3 py-1 rounded-sm"
+            >
+              Logout
+            </button>
+          ) : (
+            !authLoading && (
+              <Link
+                href="/login"
+                className="text-sm bg-blue-500 text-white text-center px-3 py-1 rounded-sm hover:bg-blue-600"
+              >
+                Sign In
+              </Link>
+            )
+          )}
+
           {/* Mobile Menu Toggle */}
           <AlignJustify
             className="md:hidden border rounded-sm text-gray-950 dark:text-gray-100 cursor-pointer"
             onClick={modelHandler}
           />
 
-          {/* User Actions */}
+          {/* Mobile Menu */}
           <div
-            className={`flex items-center md:justify-center pt-3 md:pt-0 gap-3 flex-col md:flex-row fixed md:static top-0 h-full ${
+            className={`fixed top-0 h-full md:hidden ${
               model
                 ? "right-0 bg-white dark:bg-[#1C1B1B] w-[12rem] p-4"
                 : "-left-full bg-transparent"
-            } md:w-auto transition-all z-50`}
+            } transition-all z-50`}
+            ref={mobileMenuRef}
           >
             <X
-              className="md:hidden text-red-500 self-end cursor-pointer"
+              className="text-red-500 self-end cursor-pointer mb-4"
               onClick={() => setModel(false)}
             />
-            {!authLoading && user ? (
-              <>
-                <div className="relative">
-                  <Bell className="h-5 w-5 text-gray-900 dark:text-gray-100" />
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                    7
-                  </span>
-                </div>
-                <Link
-                  href="/profile"
-                  className="border-2 w-7 h-7 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100"
-                >
-                  <ProfileIcon className="h-6 w-6 p-0.5 text-gray-900 dark:text-gray-100" />
-                </Link>
+
+            {/* Profile (Top Center) */}
+            {!authLoading && user && (
+              <Link href="/profile" className="flex justify-center mb-4">
+                {user.avatar ? (
+                  <Image
+                    src={user.avatar}
+                    alt="User avatar"
+                    width={40}
+                    height={40}
+                    className="rounded-full border-2 border-gray-900 dark:border-gray-100"
+                  />
+                ) : (
+                  <div className="border-2 w-10 h-10 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100">
+                    <ProfileIcon className="h-8 w-8 p-0.5 text-gray-900 dark:text-gray-100" />
+                  </div>
+                )}
+              </Link>
+            )}
+
+            {/* Navigation Links */}
+            <div className="flex flex-col gap-2">
+              <Link
+                href="/"
+                className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400"
+                onClick={() => setModel(false)}
+              >
+                Home
+              </Link>
+              <Link
+                href="/posts"
+                className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400"
+                onClick={() => setModel(false)}
+              >
+                Posts
+              </Link>
+              {user && (
+                <>
+                  <Link
+                    href="/posts/create"
+                    className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400"
+                    onClick={() => setModel(false)}
+                  >
+                    Create Post
+                  </Link>
+                  <Link
+                    href="/profile"
+                    className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400"
+                    onClick={() => setModel(false)}
+                  >
+                    Profile
+                  </Link>
+                </>
+              )}
+              <Link
+                href="/about"
+                className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400"
+                onClick={() => setModel(false)}
+              >
+                About
+              </Link>
+            </div>
+
+            {/* User Actions (Logout/Sign In) */}
+            <div className="mt-4">
+              {!authLoading && user ? (
                 <button
                   onClick={logout}
-                  className="text-sm text-white bg-red-400 hover:bg-red-500 hover:shadow text-center px-3 py-1 rounded-sm"
+                  className="text-sm text-white bg-red-400 hover:bg-red-500 hover:shadow text-center px-3 py-1 rounded-sm w-full"
                 >
                   Logout
                 </button>
-              </>
-            ) : (
-              !authLoading && (
-                <Link
-                  href="/login"
-                  className="text-sm bg-blue-500 text-white text-center px-3 py-1 rounded-sm hover:bg-blue-600"
-                >
-                  Sign In
-                </Link>
-              )
-            )}
+              ) : (
+                !authLoading && (
+                  <Link
+                    href="/login"
+                    className="text-sm bg-blue-500 text-white text-center px-3 py-1 rounded-sm hover:bg-blue-600 block w-full"
+                  >
+                    Sign In
+                  </Link>
+                )
+              )}
+            </div>
           </div>
         </div>
       </div>
