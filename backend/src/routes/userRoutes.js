@@ -5,6 +5,7 @@ import {
   getSuspendedPosts,
 } from "../controllers/adminController.js";
 import {
+  followUser,
   getAllUser,
   getSingleUser,
   getUserProfile,
@@ -14,8 +15,9 @@ import { verifyJWT } from "../middleware/authMiddleware.js";
 const router = Router();
 
 router.route("/").get(getAllUser);
+router.route("/profile").get(verifyJWT, getUserProfile);
 router.route("/:userName").get(getSingleUser);
-router.route("/profile/me").get(verifyJWT, getUserProfile);
+router.route("/:userName/follow").patch(verifyJWT, followUser);
 
 // Suspended Posts and Comments
 router.route("/suspend/posts").get(verifyJWT, getSuspendedPosts);

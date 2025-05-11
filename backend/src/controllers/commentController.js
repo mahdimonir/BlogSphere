@@ -8,6 +8,7 @@ import {
 } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { createNotification } from "../utils/notificationHelper.js";
 import { throwIf } from "../utils/throwIf.js";
 
 // Utility function for shared comment creation logic
@@ -30,7 +31,7 @@ const createCommentDocument = async ({
   });
   await comment.save();
 
-  await comment.populate({ path: "author", select: "userName" });
+  await comment.populate({ path: "author", select: "userName avatar" });
 
   return comment;
 };
@@ -42,7 +43,7 @@ const createComment = asyncHandler(async (req, res) => {
 
   throwIf(!postId, new ValidationError("Post ID is required"));
 
-  const post = await Post.findById(postId);
+  const post = await Post.findById(postId).populate("author", "userName");
   throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
   const comment = await createCommentDocument({
@@ -55,6 +56,16 @@ const createComment = asyncHandler(async (req, res) => {
     $push: { comments: comment._id },
     $inc: { commentCount: 1 },
   });
+
+  // Notify post author if not the commenter
+  if (post.author._id.toString() !== userId) {
+    await createNotification({
+      userId: post.author._id,
+      message: `${req.user.userName} commented on your post: ${post.title}`,
+      type: "comment",
+      link: `/posts/${post._id}`,
+    });
+  }
 
   return res
     .status(201)
@@ -71,14 +82,17 @@ const createNestedComment = asyncHandler(async (req, res) => {
     new ValidationError("Parent comment ID is required")
   );
 
-  const parentComment = await Comment.findById(parentCommentId);
+  const parentComment = await Comment.findById(parentCommentId).populate(
+    "author",
+    "userName"
+  );
   throwIf(
     !parentComment || parentComment.isSuspended,
     new NotFoundError("Parent comment not found")
   );
 
   const postId = parentComment.post;
-  const post = await Post.findById(postId);
+  const post = await Post.findById(postId).populate("author", "userName");
   throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
   let depth = 0;
@@ -105,6 +119,16 @@ const createNestedComment = asyncHandler(async (req, res) => {
   await Post.findByIdAndUpdate(postId, {
     $inc: { commentCount: 1 },
   });
+
+  // Notify parent comment author if not the replier
+  if (parentComment.author._id.toString() !== userId) {
+    await createNotification({
+      userId: parentComment.author._id,
+      message: `${req.user.userName} replied to your comment on: ${post.title}`,
+      type: "comment",
+      link: `/posts/${post._id}`,
+    });
+  }
 
   return res
     .status(201)
@@ -137,7 +161,7 @@ const updateComment = asyncHandler(async (req, res) => {
   comment.content = content.trim();
   await comment.save();
 
-  await comment.populate({ path: "author", select: "userName" });
+  await comment.populate({ path: "author", select: "userName avatar" });
 
   return res
     .status(200)
@@ -217,7 +241,7 @@ const getComments = asyncHandler(async (req, res) => {
   throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
   const comments = await Comment.find({ post: postId, isSuspended: false })
-    .populate("author", "userName")
+    .populate("author", "userName avatar")
     .populate("likes")
     .sort({ createdAt: -1 })
     .lean();

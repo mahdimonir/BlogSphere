@@ -21,8 +21,7 @@ const postSchema = new Schema(
     status: {
       type: String,
       enum: ["pending", "approved"],
-      // default: "pending",
-      default: "approved",
+      default: "pending",
     },
     content: {
       type: String,

@@ -1,7 +1,7 @@
 "use client";
 
+import { Demo_Image, Demo_Image2 } from "@/app/assets/demo";
 import {
-  calculateReadTime,
   capitalizeFirstLetter,
   formatDate,
   formatNumber,
@@ -23,67 +23,77 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import { Demo_Image, Demo_Image2 } from "../assets/demo";
 
-export default function PostCard({
-  post,
-  compact = false,
-  onClick,
-  onPostDeleted,
-}) {
-  const {
-    title = "Untitled Post",
-    content = "",
-    image = Demo_Image2,
-    author = { userName: "Unknown", avatar: Demo_Image, _id: "" },
-    _id,
-    catagory = ["General"],
-    createdAt,
-    likeCount = 0,
-    commentCount = 0,
-    likes = [],
-    isLiked = false,
-    comments = [],
-    tags = [],
-    status = "pending",
-    isSuspended = false,
-  } = post;
-
+export default function PostClient({ id }) {
   const { user } = useAuth();
   const router = useRouter();
-  const initialIsLiked =
-    isLiked || likes.some((like) => like.likedBy._id === user?._id);
-
-  const [likesState, setLikes] = useState(likeCount);
-  const [liked, setLiked] = useState(initialIsLiked);
+  const [post, setPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [likesState, setLikes] = useState(0);
+  const [liked, setLiked] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [replyTo, setReplyTo] = useState(null);
   const [newReply, setNewReply] = useState({});
-  const [localComments, setLocalComments] = useState(comments);
-  const [localCommentCount, setLocalCommentCount] = useState(commentCount);
-  const [commentLikes, setCommentLikes] = useState(
-    comments.reduce(
-      (acc, comment) => ({
-        ...acc,
-        [comment._id]: {
-          liked:
-            comment.isLiked ||
-            comment.likes.some((like) => like.likedBy._id === user?._id),
-          likeCount: comment.likeCount || 0,
-        },
-      }),
-      {}
-    )
-  );
+  const [localComments, setLocalComments] = useState([]);
+  const [localCommentCount, setLocalCommentCount] = useState(0);
+  const [commentLikes, setCommentLikes] = useState({});
   const [dropdownOpen, setDropdownOpen] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [editingComment, setEditingComment] = useState(null);
   const [editCommentContent, setEditCommentContent] = useState("");
+  const [showTags, setShowTags] = useState(false);
   const postDropdownRef = useRef(null);
   const commentDropdownRefs = useRef({});
-  const [showTags, setShowTags] = useState(false);
 
+  // Validate id and handle invalid cases
+  useEffect(() => {
+    if (!id || typeof id !== "string") {
+      console.error("Invalid post ID:", id);
+      toast.error("Invalid post ID");
+      router.push("/posts");
+    }
+  }, [id, router]);
+
+  // Fetch post data
+  useEffect(() => {
+    const fetchPost = async () => {
+      if (!id) return;
+      try {
+        const response = await axiosInstance.get(`/posts/${id}`);
+        const postData = response.data.data;
+        setPost(postData);
+        setLikes(postData.likeCount || 0);
+        setLiked(
+          postData.isLiked ||
+            postData.likes.some((like) => like.likedBy._id === user?._id)
+        );
+        setLocalComments(postData.comments || []);
+        setLocalCommentCount(postData.commentCount || 0);
+        setCommentLikes(
+          postData.comments.reduce(
+            (acc, comment) => ({
+              ...acc,
+              [comment._id]: {
+                liked:
+                  comment.isLiked ||
+                  comment.likes.some((like) => like.likedBy._id === user?._id),
+                likeCount: comment.likeCount || 0,
+              },
+            }),
+            {}
+          )
+        );
+      } catch (error) {
+        toast.error(error.response?.data?.message || "Failed to load post");
+        router.push("/posts");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPost();
+  }, [id, user, router]);
+
+  // Handle click outside for dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -92,7 +102,6 @@ export default function PostCard({
       ) {
         if (dropdownOpen === "post") setDropdownOpen(null);
       }
-
       Object.entries(commentDropdownRefs.current).forEach(
         ([commentId, ref]) => {
           if (ref.current && !ref.current.contains(event.target)) {
@@ -101,7 +110,6 @@ export default function PostCard({
         }
       );
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
@@ -111,25 +119,16 @@ export default function PostCard({
       toast.error("Please log in to like posts");
       return;
     }
-
     const optimisticLiked = !liked;
     const optimisticLikes = optimisticLiked ? likesState + 1 : likesState - 1;
-
     setLiked(optimisticLiked);
     setLikes(optimisticLikes);
-
     try {
       const response = await axiosInstance.patch(`/likes/toggle`, {
-        postId: _id,
+        postId: id,
       });
-      if (response.status === 200 || response.status === 201) {
-        setLiked(response.data.data.isLiked);
-        setLikes(response.data.data.likeCount);
-      } else {
-        setLiked(!optimisticLiked);
-        setLikes(likesState);
-        toast.error("Failed to toggle like");
-      }
+      setLiked(response.data.data.isLiked);
+      setLikes(response.data.data.likeCount);
     } catch (error) {
       setLiked(!optimisticLiked);
       setLikes(likesState);
@@ -142,7 +141,6 @@ export default function PostCard({
       toast.error("Please log in to like comments");
       return;
     }
-
     const currentState = commentLikes[commentId] || {
       liked: false,
       likeCount: 0,
@@ -151,31 +149,21 @@ export default function PostCard({
     const optimisticLikeCount = optimisticLiked
       ? currentState.likeCount + 1
       : currentState.likeCount - 1;
-
     setCommentLikes((prev) => ({
       ...prev,
       [commentId]: { liked: optimisticLiked, likeCount: optimisticLikeCount },
     }));
-
     try {
       const response = await axiosInstance.patch(`/likes/toggle`, {
         commentId,
       });
-      if (response.status === 200 || response.status === 201) {
-        setCommentLikes((prev) => ({
-          ...prev,
-          [commentId]: {
-            liked: response.data.data.isLiked,
-            likeCount: response.data.data.likeCount,
-          },
-        }));
-      } else {
-        setCommentLikes((prev) => ({
-          ...prev,
-          [commentId]: currentState,
-        }));
-        toast.error("Failed to toggle comment like");
-      }
+      setCommentLikes((prev) => ({
+        ...prev,
+        [commentId]: {
+          liked: response.data.data.isLiked,
+          likeCount: response.data.data.likeCount,
+        },
+      }));
     } catch (error) {
       setCommentLikes((prev) => ({
         ...prev,
@@ -196,10 +184,9 @@ export default function PostCard({
       toast.error("Comment cannot be empty");
       return;
     }
-
     try {
       const response = await axiosInstance.post(`/comments`, {
-        postId: _id,
+        postId: id,
         content: newComment,
       });
       const newCommentData = response.data.data;
@@ -231,7 +218,6 @@ export default function PostCard({
       toast.error("Reply cannot be empty");
       return;
     }
-
     try {
       const response = await axiosInstance.post(`/comments/replies`, {
         parentCommentId,
@@ -311,7 +297,6 @@ export default function PostCard({
       toast.error("Comment cannot be empty");
       return;
     }
-
     try {
       const response = await axiosInstance.patch(`/comments/${commentId}`, {
         content: editCommentContent,
@@ -333,7 +318,6 @@ export default function PostCard({
 
   const handleDeleteComment = async (commentId) => {
     if (!confirm("Are you sure you want to delete this comment?")) return;
-
     try {
       await axiosInstance.delete(`/comments/${commentId}`);
       setLocalComments((prev) => prev.filter((c) => c._id !== commentId));
@@ -361,63 +345,42 @@ export default function PostCard({
     );
   };
 
-  const handleDeletePost = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDeletePost = async () => {
     if (!confirm("Are you sure you want to delete this post?")) return;
-    if (!_id) {
-      toast.error("Invalid post ID");
-      return;
-    }
-
-    setIsDeleting(true);
     try {
-      const response = await axiosInstance.delete(`/posts/${_id}`);
+      await axiosInstance.delete(`/posts/${id}`);
       toast.success("Post deleted successfully");
-      if (onPostDeleted) onPostDeleted(_id);
+      router.push("/posts");
     } catch (error) {
-      console.error("Failed to delete post:", {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
       toast.error(error.response?.data?.message || "Failed to delete post");
-      if (onPostDeleted) onPostDeleted(_id); // Optimistic update
-    } finally {
-      setIsDeleting(false);
     }
   };
 
-  const handleUpdateStatus = async (e, newStatus) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleUpdateStatus = async (status) => {
     try {
-      const response = await axiosInstance.patch(`/posts/${_id}`, {
-        status: newStatus,
-      });
-      toast.success(`Post status updated to ${newStatus}`);
-      // Update local post status (optional, depends on parent component re-rendering)
-      post.status = newStatus;
+      const response = await axiosInstance.patch(`/posts/${id}`, { status });
+      setPost((prev) => ({ ...prev, status: response.data.data.status }));
+      toast.success(`Post status updated to ${status}`);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update status");
     }
   };
 
-  const handleSuspendPost = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleSuspendPost = async () => {
     try {
       const response = await axiosInstance.patch(
-        `/admin/suspension/post/${_id}`,
+        `/admin/suspension/post/${id}`,
         {
-          isSuspended: !isSuspended,
+          isSuspended: !post.isSuspended,
         }
       );
+      setPost((prev) => ({
+        ...prev,
+        isSuspended: response.data.data.isSuspended,
+      }));
       toast.success(
-        `Post ${isSuspended ? "unsuspended" : "suspended"} successfully`
+        `Post ${post.isSuspended ? "unsuspended" : "suspended"} successfully`
       );
-      // Update local post suspension status
-      post.isSuspended = response.data.data.isSuspended;
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Failed to suspend/unsuspend post"
@@ -460,9 +423,6 @@ export default function PostCard({
       );
     }
   };
-
-  // Parse tags if stored as a stringified array
-  const parsedTags = typeof tags === "string" ? JSON.parse(tags) : tags;
 
   const renderComments = (comments, depth = 0) => {
     return comments.map((comment) => {
@@ -522,7 +482,7 @@ export default function PostCard({
                         />
                       </button>
                       {dropdownOpen === comment._id && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-10 transition-all duration-200">
                           {isCommentAuthor && (
                             <>
                               <button
@@ -531,7 +491,7 @@ export default function PostCard({
                                   setEditCommentContent(comment.content);
                                   setDropdownOpen(null);
                                 }}
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                                className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left"
                               >
                                 <Edit size={16} className="mr-2" />
                                 Edit Comment
@@ -541,7 +501,7 @@ export default function PostCard({
                                   handleDeleteComment(comment._id);
                                   setDropdownOpen(null);
                                 }}
-                                className="flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                                className="flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left"
                               >
                                 <Trash2 size={16} className="mr-2" />
                                 Delete Comment
@@ -554,7 +514,7 @@ export default function PostCard({
                                 handleSuspendComment(comment._id);
                                 setDropdownOpen(null);
                               }}
-                              className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                              className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left"
                             >
                               <Ban size={16} className="mr-2" />
                               {comment.isSuspended
@@ -663,71 +623,187 @@ export default function PostCard({
     });
   };
 
+  if (loading) {
+    return (
+      <div className="text-center text-gray-600 dark:text-gray-300 py-10">
+        Loading post...
+      </div>
+    );
+  }
+
+  if (!post) {
+    return (
+      <div className="text-center text-gray-600 dark:text-gray-300 py-10">
+        Post not found.
+      </div>
+    );
+  }
+
+  const isAuthor = user && user._id === post.author._id;
+  const isAdmin = user && user.role === "admin";
+  const parsedTags =
+    typeof post.tags === "string" ? JSON.parse(post.tags) : post.tags || [];
   const secureImageUrl =
-    image && typeof image === "string" && image.startsWith("http://")
-      ? image.replace("http://", "https://")
-      : image || Demo_Image2;
-
-  const filteredCategories = catagory
-    .filter((category) => category.toLowerCase() !== "trending")
-    .slice(0, 1);
-
+    post.image &&
+    typeof post.image === "string" &&
+    post.image.startsWith("http://")
+      ? post.image.replace("http://", "https://")
+      : post.image || Demo_Image2;
+  const filteredCategories =
+    post.catagory
+      ?.filter((category) => category.toLowerCase() !== "trending")
+      ?.slice(0, 1) || [];
   const displayCategories =
     filteredCategories.length > 0 ? filteredCategories : ["General"];
 
-  const isAuthor = user && user._id === author._id;
-  const isAdmin = user && user.role === "admin";
-
-  // Strip HTML for plain text preview
-  const stripHtml = (html) => {
-    if (typeof window === "undefined") return html;
-    const tmp = document.createElement("div");
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || "";
-  };
-
   return (
-    <div
-      className={`rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-lg flex flex-col border border-gray-200 dark:border-gray-700 ${
-        isSuspended ? "opacity-50" : ""
-      }`}
-      style={{ minHeight: compact ? "200px" : "400px" }}
-    >
-      <div className="relative">
-        <div
-          style={{
-            height: compact ? "128px" : "200px",
-            overflow: "hidden",
-          }}
-        >
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-white dark:bg-gray-800 shadow-lg">
+      {/* 1st: Author, CreatedAt, Status */}
+      <div className="mb-4 flex justify-between items-center">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-2">
+            <Image
+              src={post.author.avatar || Demo_Image}
+              alt={post.author.userName}
+              width={32}
+              height={32}
+              className="rounded-full h-8 w-8 object-cover"
+            />
+            <Link href={`/profile/${post.author.userName}`}>
+              <span className="text-base font-medium text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400">
+                {capitalizeFirstLetter(post.author.userName)}
+              </span>
+            </Link>
+          </div>
+        </div>
+
+        {(isAuthor || isAdmin) && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <span>
+              Status:{" "}
+              <span
+                className={
+                  post.status === "approved"
+                    ? "text-green-500"
+                    : post.status === "pending"
+                    ? "text-yellow-500"
+                    : "text-red-500"
+                }
+              >
+                {capitalizeFirstLetter(post.status)}
+              </span>
+              {post.isSuspended && <span>(Suspended)</span>}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center ml-9 mt-[-28px] mb-4 text-sm text-gray-500 dark:text-gray-400">
+        <span className="">{formatDate(post.createdAt)}</span>
+      </div>
+      {/* 2nd: Image with Category Chip */}
+      {post.image && (
+        <div className="mb-6 relative">
           <Image
             src={secureImageUrl}
-            alt={title}
+            alt={post.title}
             width={800}
-            height={600}
-            style={{ width: "100%", height: "100%" }}
-            className="object-cover"
+            height={400}
+            className="object-cover w-full"
           />
+          <div className="absolute top-4 left-4">
+            {displayCategories.map((category, index) => (
+              <span
+                key={index}
+                className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-3 rounded-full text-xs font-medium"
+              >
+                {capitalizeFirstLetter(category)}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="absolute top-3 left-3">
-          {displayCategories.map((category, index) => (
-            <span
-              key={index}
-              className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-3 rounded-full text-xs font-medium"
-            >
-              {capitalizeFirstLetter(category)}
-            </span>
-          ))}
+      )}
+      {/* 3rd: Title */}
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">
+        {post.title}
+      </h1>
+      {/* 4th: Content */}
+      <div
+        className="prose dark:prose-invert text-gray-700 dark:text-gray-300 mb-6 max-w-none"
+        dangerouslySetInnerHTML={{ __html: post.content }}
+      />
+      {/* 5th: Tags (Toggleable) */}
+      <div className="mb-6">
+        <button
+          onClick={() => setShowTags(!showTags)}
+          className="flex items-center text-sm text-gray-700 dark:text-gray-200 hover:text-blue-500 dark:hover:text-blue-400 mb-2"
+        >
+          <Tag size={16} className="mr-1" />
+          {showTags ? "Hide Tags" : "Show Tags"}
+        </button>
+        {showTags && parsedTags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {parsedTags.map((tag, index) => (
+              <span
+                key={index}
+                className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-3 rounded-full text-xs font-medium"
+              >
+                {capitalizeFirstLetter(tag)}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Table of Contents (Optional) */}
+      {post.contentTable?.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
+            Table of Contents
+          </h2>
+          <pre className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-auto">
+            {post.contentTable[0]}
+          </pre>
         </div>
+      )}
+      {/* 6th: Likes, Comments, Action (Dropdown) */}
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <button
+          onClick={handleLikeToggle}
+          className="flex items-center text-sm text-gray-700 dark:text-gray-200"
+          aria-label={liked ? "Unlike post" : "Like post"}
+        >
+          <HeartIcon
+            size={20}
+            fill={liked ? "red" : "none"}
+            className={`mr-1 ${
+              liked
+                ? "text-red-500 fill-red-500"
+                : "text-gray-700 dark:text-gray-200 hover:fill-red-500 hover:text-red-500"
+            }`}
+          />
+          {formatNumber(likesState)}
+        </button>
+        <button
+          onClick={() => setShowComments(!showComments)}
+          className="flex items-center text-sm text-gray-700 dark:text-gray-200"
+          aria-label={showComments ? "Hide comments" : "Show comments"}
+        >
+          <MessageCircle
+            size={20}
+            className={`mr-1 ${
+              showComments
+                ? "text-blue-500 fill-blue-500"
+                : "text-gray-700 dark:text-gray-200 hover:fill-blue-500 hover:text-blue-500"
+            }`}
+          />
+          {formatNumber(localCommentCount)}
+        </button>
         {(isAuthor || isAdmin) && (
-          <div className="absolute top-4 right-4" ref={postDropdownRef}>
+          <div className="relative z-50" ref={postDropdownRef}>
             <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDropdownOpen(dropdownOpen === "post" ? null : "post");
-              }}
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+              onClick={() =>
+                setDropdownOpen(dropdownOpen === "post" ? null : "post")
+              }
+              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               aria-label="Post options"
             >
               <MoreVertical
@@ -736,44 +812,36 @@ export default function PostCard({
               />
             </button>
             {dropdownOpen === "post" && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-10 transition-all duration-200">
                 {isAuthor && (
                   <>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        router.push(`/posts/edit/${_id}`);
-                      }}
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                    <Link
+                      href={`/posts/edit/${id}`}
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
                     >
                       <Edit size={16} className="mr-2" />
                       Edit Post
-                    </button>
+                    </Link>
                     <button
                       onClick={handleDeletePost}
-                      disabled={isDeleting}
-                      className={`flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left ${
-                        isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
+                      className="flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
                     >
                       <Trash2 size={16} className="mr-2" />
                       Delete Post
                     </button>
                     <button
-                      onClick={(e) =>
+                      onClick={() =>
                         handleUpdateStatus(
-                          e,
-                          status === "approved" ? "pending" : "approved"
+                          post.status === "approved" ? "pending" : "approved"
                         )
                       }
                       className={`flex items-center px-4 py-2 text-sm ${
-                        status === "approved"
+                        post.status === "approved"
                           ? "text-yellow-600 dark:text-yellow-400"
                           : "text-green-600 dark:text-green-400"
-                      } hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left`}
+                      } hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors`}
                     >
-                      {status === "approved" ? (
+                      {post.status === "approved" ? (
                         <>
                           <Ban size={16} className="mr-2" />
                           Set to Pending
@@ -790,10 +858,10 @@ export default function PostCard({
                 {isAdmin && (
                   <button
                     onClick={handleSuspendPost}
-                    className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                    className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
                   >
                     <Ban size={16} className="mr-2" />
-                    {isSuspended ? "Unsuspend Post" : "Suspend Post"}
+                    {post.isSuspended ? "Unsuspend Post" : "Suspend Post"}
                   </button>
                 )}
               </div>
@@ -801,111 +869,9 @@ export default function PostCard({
           </div>
         )}
       </div>
-
-      <div className={`p-4 ${compact ? "pb-2" : ""} flex-grow`}>
-        {!compact && createdAt && (
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex justify-between">
-            <span>{formatDate(createdAt)}</span>
-            <span>{calculateReadTime(stripHtml(content))}</span>
-          </div>
-        )}
-
-        <Link href={`/posts/${_id}`} onClick={onClick}>
-          <h3 className={`font-bold ${compact ? "text-sm" : "text-lg"} mb-2`}>
-            {title}
-            {isSuspended && <span className="text-red-500"> (Suspended)</span>}
-          </h3>
-          {!compact && content && (
-            <div
-              className="text-gray-600 dark:text-gray-300 text-sm mb-4 prose dark:prose-invert line-clamp-2"
-              dangerouslySetInnerHTML={{ __html: content.slice(0, 200) }}
-            />
-          )}
-        </Link>
-
-        {!compact && parsedTags && parsedTags.length > 0 && (
-          <div className="mb-2">
-            <button
-              onClick={() => setShowTags(!showTags)}
-              className="flex items-center text-sm text-gray-700 dark:text-gray-200 hover:text-blue-500 mb-2"
-            >
-              <Tag size={16} className="mr-1" />
-              {showTags ? "Hide Tags" : "Show Tags"}
-            </button>
-            {showTags && (
-              <div className="flex flex-wrap gap-2">
-                {parsedTags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-3 rounded-full text-xs font-medium"
-                  >
-                    {capitalizeFirstLetter(tag)}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {!compact && (
-          <div className="flex items-center justify-between">
-            <Link href={`/profile/${author.userName}`}>
-              <div className="flex items-center gap-2">
-                <Image
-                  src={author.avatar || Demo_Image}
-                  alt={author.userName}
-                  width={24}
-                  height={24}
-                  className="rounded-full h-6 w-6 object-cover"
-                />
-                <span className="text-sm hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
-                  {capitalizeFirstLetter(author.userName)}
-                </span>
-              </div>
-            </Link>
-
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleLikeToggle}
-                className="flex items-center text-sm text-gray-700 dark:text-gray-200"
-                aria-label={liked ? "Unlike post" : "Like post"}
-              >
-                <HeartIcon
-                  size={20}
-                  fill={liked ? "red" : "none"}
-                  className={`mr-1  ${
-                    liked
-                      ? "text-red-500 fill-red-500"
-                      : "text-gray-700 dark:text-gray-200 hover:fill-red-500 hover:text-red-500"
-                  }`}
-                />
-                {formatNumber(likesState)}
-              </button>
-            </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setShowComments(!showComments)}
-                className="flex items-center text-sm text-gray-700 dark:text-gray-200"
-                aria-label={showComments ? "Hide comments" : "Show comments"}
-              >
-                <MessageCircle
-                  size={20}
-                  fill={showComments ? "blue" : "none"}
-                  className={`mr-1 ${
-                    showComments
-                      ? "text-blue-500 fill-blue-500"
-                      : "text-gray-700 dark:text-gray-200 hover:fill-blue-500 hover:text-blue-500"
-                  }`}
-                />
-                {formatNumber(localCommentCount)}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {!compact && showComments && (
-        <div className="p-4">
+      {/* Comments Section (Hidden by Default) */}
+      {showComments && (
+        <div>
           <div className="flex items-center gap-2 mb-4">
             <textarea
               value={newComment}
@@ -923,7 +889,7 @@ export default function PostCard({
           {localComments.length > 0 ? (
             renderComments(localComments)
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
               No comments yet.
             </p>
           )}
