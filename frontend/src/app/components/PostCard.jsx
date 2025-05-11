@@ -491,7 +491,7 @@ export default function PostCard({
             />
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <Link href={`/profile/${comment.author.userName}`}>
+                <Link href={`/users/${comment.author.userName}`}>
                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400">
                     {capitalizeFirstLetter(comment.author.userName)}
                   </span>
@@ -743,7 +743,7 @@ export default function PostCard({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        router.push(`/posts/edit/${_id}`);
+                        router.push(`/profile/edit/${_id}`);
                       }}
                       className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
                     >
@@ -849,7 +849,7 @@ export default function PostCard({
 
         {!compact && (
           <div className="flex items-center justify-between">
-            <Link href={`/profile/${author.userName}`}>
+            <Link href={`/users/${author.userName}`}>
               <div className="flex items-center gap-2">
                 <Image
                   src={author.avatar || Demo_Image}

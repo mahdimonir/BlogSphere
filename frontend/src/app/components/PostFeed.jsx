@@ -48,10 +48,7 @@ export default function PostFeed({ initialPosts, defaultCategory }) {
         params.order = order;
       }
 
-      console.log("Fetching posts with params:", params);
-
       const response = await axiosInstance.get("/posts", { params });
-      console.log("API response:", response.data);
 
       const fetchedPosts = response.data.data.posts || [];
       setPosts(fetchedPosts);
@@ -67,8 +64,6 @@ export default function PostFeed({ initialPosts, defaultCategory }) {
 
   // Client-side filtering and sorting
   const updatePosts = useCallback(() => {
-    console.log("Updating posts client-side", { activeCategory, sortBy });
-
     let updatedPosts = [...initialPosts];
 
     // Filter by category
@@ -77,18 +72,6 @@ export default function PostFeed({ initialPosts, defaultCategory }) {
         post.catagory.includes(activeCategory)
       );
     }
-
-    // Log likes and comments for debugging
-    console.log(
-      "Post likes/comments:",
-      updatedPosts.map((p) => ({
-        id: p._id,
-        likes: p.likes,
-        likeCount: p.likeCount,
-        comments: p.comments,
-        commentCount: p.commentCount,
-      }))
-    );
 
     // Sort posts
     switch (sortBy) {
@@ -119,31 +102,22 @@ export default function PostFeed({ initialPosts, defaultCategory }) {
         break;
     }
 
-    console.log("Client-side filtered/sorted posts:", updatedPosts);
     setPosts(updatedPosts);
 
     // If no posts after filtering and initialPosts is non-empty, fetch from server
     if (updatedPosts.length === 0 && initialPosts?.length > 0) {
-      console.log("No posts found client-side, fetching from server");
       fetchPosts(activeCategory, sortBy);
     }
   }, [initialPosts, activeCategory, sortBy, fetchPosts]);
 
   // Update posts when category or sort changes
   useEffect(() => {
-    console.log("useEffect triggered", {
-      activeCategory,
-      sortBy,
-      defaultCategory,
-    });
-
     // Use initialPosts if available and matches filters
     if (
       initialPosts?.length > 0 &&
       (activeCategory === defaultCategory || activeCategory === "All") &&
       sortBy === "Newest"
     ) {
-      console.log("Using initialPosts:", initialPosts);
       setPosts(initialPosts);
       setLoading(false);
     } else {

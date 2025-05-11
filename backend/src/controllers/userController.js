@@ -717,23 +717,27 @@ const followUser = asyncHandler(async (req, res) => {
   const currentUser = await User.findById(userId);
   throwIf(!currentUser, new NotFoundError("Current user not found"));
 
-  const isFollowing = currentUser.following.includes(targetUser._id);
+  const isFollowing = currentUser.following.some(
+    (f) => f._id.toString() === targetUser._id.toString()
+  );
 
   if (isFollowing) {
     // Unfollow
     await User.findByIdAndUpdate(userId, {
-      $pull: { following: targetUser._id },
+      $pull: { following: { _id: targetUser._id } },
     });
     await User.findByIdAndUpdate(targetUser._id, {
-      $pull: { followers: userId },
+      $pull: { followers: { _id: userId } },
     });
   } else {
     // Follow
     await User.findByIdAndUpdate(userId, {
-      $push: { following: targetUser._id },
+      $push: {
+        following: { _id: targetUser._id, userName: targetUser.userName },
+      },
     });
     await User.findByIdAndUpdate(targetUser._id, {
-      $push: { followers: userId },
+      $push: { followers: { _id: userId, userName: currentUser.userName } },
     });
 
     // Notify the followed user
@@ -745,7 +749,6 @@ const followUser = asyncHandler(async (req, res) => {
     });
   }
 
-  const updatedUser = await User.findById(userId).select("following");
   return res
     .status(200)
     .json(

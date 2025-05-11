@@ -1,0 +1,32 @@
+frontend/
+├── public/                    # Static assets (images, favicon, etc.)
+├── vercel.json                # Vercel configuration (to be created)
+├── src/
+│   ├── app/
+│   │   ├── context/           # AuthContext.jsx, axiosConfig.js
+│   │   ├── components/        # Reusable components (UserCard, Sidebar, etc.)
+│   │   ├── layout.jsx         # Root layout
+│   │   ├── page.jsx           # Home page (/)
+│   │   ├── users/             # Users routes
+│   │   │   ├── page.jsx       # /users (list all users)
+│   │   │   └── [userName]/    # /users/:userName
+│   │   │       └── page.jsx
+│   │   ├── posts/             # Posts routes
+│   │   │   ├── page.jsx       # /posts (list all posts)
+│   │   │   └── [id]/          # /posts/:id
+│   │   │       └── page.jsx
+│   │   ├── profile/           # Profile routes
+│   │   │   ├── page.jsx       # /profile (private dashboard)
+│   │   │   ├── edit/          # /profile/edit
+│   │   │   │   └── page.jsx
+│   │   │   ├── posts/         # /profile/posts
+│   │   │   │   └── page.jsx
+│   │   │   ├── create/        # /profile/create
+│   │   │   │   └── page.jsx
+│   │   │   ├── edit/          # /profile/edit/:id
+│   │   │   │   └── [id]/
+│   │   │   │       └── page.jsx
+│   │   │   └── suspended/     # /profile/suspended
+│   │   │       └── page.jsx
+│   │   └── ...                # Other routes (e.g., login, home)
+├── package.json               # Dependencies and scripts

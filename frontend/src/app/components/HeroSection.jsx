@@ -78,7 +78,7 @@ export default function HeroSection({ posts }) {
                         className="rounded-full"
                       />
                       <Link
-                        href={`/users/${post.author?._id || ""}`}
+                        href={`/users/${post.author?.userName || ""}`}
                         className="hover:text-blue-500"
                       >
                         <span>

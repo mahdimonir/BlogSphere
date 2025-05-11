@@ -1,9 +1,9 @@
 "use client";
 
+import Loading from "@/app/components/Loading";
+import axiosInstance from "@/app/utils/axiosConfig";
 import { useAuth } from "@/context/AuthContext";
-import { API_URL } from "@/server";
-import axios from "axios";
-import { Loader2, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -33,15 +33,12 @@ export default function UpdateProfile() {
 
   const fetchProfile = async () => {
     try {
-      const response = await axios.get(`${API_URL}/users/profile`, {
-        withCredentials: true,
-      });
+      const response = await axiosInstance.get("/users/profile");
       const { name, bio, avatar, userName } = response.data.data;
       setFormData({ name, bio, avatar, userName });
       setPreview(avatar);
     } catch (err) {
-      setError("Failed to load profile");
-      console.error(err);
+      setError(err.response?.data?.message || "Failed to load profile");
     } finally {
       setLoading(false);
     }
@@ -66,22 +63,25 @@ export default function UpdateProfile() {
     setSuccess(null);
 
     try {
-      // Update name and bio
-      await axios.patch(
-        `${API_URL}/auth/update`,
-        { name: formData.name, bio: formData.bio },
-        { withCredentials: true }
-      );
+      // Update profile (name, bio, userName)
+      const profileResponse = await axiosInstance.patch("/auth/update", {
+        name: formData.name,
+        bio: formData.bio,
+        userName: formData.userName,
+      });
+      setFormData((prev) => ({
+        ...prev,
+        ...profileResponse.data.data,
+      }));
 
       // Update avatar if changed
       if (avatarFile) {
         const avatarData = new FormData();
         avatarData.append("avatar", avatarFile);
-        const avatarResponse = await axios.patch(
-          `${API_URL}/auth/avatar`,
+        const avatarResponse = await axiosInstance.patch(
+          "/auth/avatar",
           avatarData,
           {
-            withCredentials: true,
             headers: { "Content-Type": "multipart/form-data" },
           }
         );
@@ -94,16 +94,25 @@ export default function UpdateProfile() {
 
       setSuccess("Profile updated successfully");
       setAvatarFile(null);
+
+      // Update localStorage user
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...JSON.parse(localStorage.getItem("user")),
+          userName: formData.userName,
+          name: formData.name,
+        })
+      );
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update profile");
-      console.error(err);
     }
   };
 
   if (loading || authLoading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <Loading />
       </div>
     );
   }
@@ -112,12 +121,18 @@ export default function UpdateProfile() {
     <div className="max-w-[600px] mx-auto px-4 py-8 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <h1 className="text-2xl font-bold mb-6">Edit Profile</h1>
       {error && (
-        <p className="mb-4 p-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded">
+        <p
+          className="mb-4 p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-lg"
+          role="alert"
+        >
           {error}
         </p>
       )}
       {success && (
-        <p className="mb-4 p-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded">
+        <p
+          className="mb-4 p-3 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded-lg"
+          role="alert"
+        >
           {success}
         </p>
       )}
@@ -140,7 +155,10 @@ export default function UpdateProfile() {
                 </div>
               )}
             </div>
-            <label className="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-blue-600">
+            <label
+              className="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-blue-600"
+              aria-label="Upload avatar"
+            >
               <Upload className="h-5 w-5" />
               Upload
               <input
@@ -148,12 +166,13 @@ export default function UpdateProfile() {
                 accept="image/*"
                 onChange={handleFileChange}
                 className="hidden"
+                aria-hidden="true"
               />
             </label>
           </div>
         </div>
 
-        {/* Username (Read-only) */}
+        {/* Username */}
         <div>
           <label htmlFor="userName" className="block text-sm font-medium mb-2">
             Username
@@ -163,8 +182,11 @@ export default function UpdateProfile() {
             id="userName"
             name="userName"
             value={formData.userName}
-            disabled
-            className="w-full p-2 rounded bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-100 cursor-not-allowed"
+            onChange={handleInputChange}
+            className="w-full p-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-required="true"
+            pattern="[a-zA-Z0-9_]+"
+            title="Username must be alphanumeric with underscores"
           />
         </div>
 
@@ -203,13 +225,15 @@ export default function UpdateProfile() {
           <button
             type="submit"
             className="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600"
+            aria-label="Save profile changes"
           >
             Save Changes
           </button>
           <button
             type="button"
-            onClick={() => router.push("/profile")}
+            onClick={() => router.push(`/users/${formData.userName}`)}
             className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full"
+            aria-label="Cancel and return to profile"
           >
             Cancel
           </button>
