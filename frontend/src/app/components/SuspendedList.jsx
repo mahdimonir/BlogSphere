@@ -1,21 +1,26 @@
 "use client";
 
 import axiosInstance from "@/app/utils/axiosConfig";
-import { Ban, CheckCircle, Loader2 } from "lucide-react";
+import { Ban, CheckCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import Error from "./Error";
+import Loading from "./Loading";
 
-export default function SuspendedList({ type, isAdmin }) {
+export default function SuspendedList({ type, isAdmin, userId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [suspendLoading, setSuspendLoading] = useState({});
 
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const endpoint =
-          type === "users"
-            ? "/users/suspended"
-            : `/posts/suspended?type=${type}`;
+        let endpoint;
+        if (isAdmin) {
+          endpoint = `/admin/suspended/${type}`;
+        } else {
+          endpoint = `/users/suspend/${type}`;
+        }
         const response = await axiosInstance.get(endpoint);
         setItems(response.data.data[type] || []);
       } catch (err) {
@@ -26,16 +31,21 @@ export default function SuspendedList({ type, isAdmin }) {
         setLoading(false);
       }
     };
-    fetchItems();
-  }, [type]);
+    if (userId || isAdmin) {
+      fetchItems();
+    }
+  }, [type, isAdmin, userId]);
 
   const handleToggleSuspend = async (id, userName) => {
     if (!isAdmin) return;
+    setSuspendLoading((prev) => ({ ...prev, [id || userName]: true }));
     try {
       const endpoint =
         type === "users"
-          ? `/users/${userName}/suspend`
-          : `/posts/${id}/suspend`;
+          ? `/admin/suspend/user/${userName}`
+          : type === "posts"
+          ? `/admin/suspend/post/${id}`
+          : `/admin/suspend/comment/${id}`;
       const response = await axiosInstance.patch(endpoint);
       setItems((prev) =>
         prev.map((item) =>
@@ -48,19 +58,17 @@ export default function SuspendedList({ type, isAdmin }) {
       setError(
         err.response?.data?.message || `Failed to toggle ${type} suspension`
       );
+    } finally {
+      setSuspendLoading((prev) => ({ ...prev, [id || userName]: false }));
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (error) {
-    return <div className="text-red-500 p-4">{error}</div>;
+    return <Error />;
   }
 
   return (
@@ -107,13 +115,20 @@ export default function SuspendedList({ type, isAdmin }) {
             {isAdmin && (
               <button
                 onClick={() => handleToggleSuspend(item._id, item.userName)}
+                disabled={suspendLoading[item._id || item.userName]}
                 className={`flex items-center px-3 py-1 rounded text-white ${
                   item.isSuspended
                     ? "bg-green-500 hover:bg-green-600"
                     : "bg-red-500 hover:bg-red-600"
+                } ${
+                  suspendLoading[item._id || item.userName]
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
                 }`}
               >
-                {item.isSuspended ? (
+                {suspendLoading[item._id || item.userName] ? (
+                  "Loading..."
+                ) : item.isSuspended ? (
                   <>
                     <CheckCircle className="h-4 w-4 mr-1" /> Unsuspend
                   </>

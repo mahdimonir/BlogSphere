@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 export default function Suspended() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState("users");
+  const [tab, setTab] = useState(user?.role === "admin" ? "users" : "posts");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -27,35 +27,52 @@ export default function Suspended() {
   return (
     <div className="flex">
       <Sidebar />
-      <div className="ml-64 p-4 w-full">
-        <h1 className="text-2xl font-bold mb-4">Suspended Content</h1>
-        <div className="flex gap-4 mb-4">
+      <div className="p-4 w-full">
+        <h1 className="text-2xl font-bold text-gray-950 dark:text-gray-100 mb-4">
+          Suspended Content
+        </h1>
+        <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700 mb-4">
+          {user.role === "admin" && (
+            <button
+              className={`pb-2 px-4 ${
+                tab === "users"
+                  ? "border-b-2 border-blue-500 text-blue-500"
+                  : "text-gray-600 dark:text-gray-400"
+              }`}
+              onClick={() => setTab("users")}
+              aria-selected={tab === "users"}
+            >
+              Users
+            </button>
+          )}
           <button
-            onClick={() => setTab("users")}
-            className={`px-4 py-2 rounded ${
-              tab === "users" ? "bg-blue-500 text-white" : "bg-gray-200"
+            className={`pb-2 px-4 ${
+              tab === "posts"
+                ? "border-b-2 border-blue-500 text-blue-500"
+                : "text-gray-600 dark:text-gray-400"
             }`}
-          >
-            Users
-          </button>
-          <button
             onClick={() => setTab("posts")}
-            className={`px-4 py-2 rounded ${
-              tab === "posts" ? "bg-blue-500 text-white" : "bg-gray-200"
-            }`}
+            aria-selected={tab === "posts"}
           >
             Posts
           </button>
           <button
-            onClick={() => setTab("comments")}
-            className={`px-4 py-2 rounded ${
-              tab === "comments" ? "bg-blue-500 text-white" : "bg-gray-200"
+            className={`pb-2 px-4 ${
+              tab === "comments"
+                ? "border-b-2 border-blue-500 text-blue-500"
+                : "text-gray-600 dark:text-gray-400"
             }`}
+            onClick={() => setTab("comments")}
+            aria-selected={tab === "comments"}
           >
             Comments
           </button>
         </div>
-        <SuspendedList type={tab} isAdmin={user.role === "admin"} />
+        <SuspendedList
+          type={tab}
+          isAdmin={user.role === "admin"}
+          userId={user._id}
+        />
       </div>
     </div>
   );

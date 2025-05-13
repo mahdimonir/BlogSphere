@@ -57,7 +57,7 @@ const createPost = asyncHandler(async (req, res) => {
   await post.save();
   await post.populate("author", "userName avatar");
 
-  // Notify followers (example)
+  // Notify followers
   const followers = await mongoose
     .model("User")
     .find({ following: req.userId });
@@ -98,7 +98,8 @@ const updatePost = asyncHandler(async (req, res) => {
     imageUrl = image.url;
   }
 
-  const { title, content, catagory, tags, contentTable } = req.body || {};
+  const { title, content, catagory, tags, contentTable, status } =
+    req.body || {};
   Object.assign(post, {
     title: title || post.title,
     content: content || post.content,
@@ -113,6 +114,7 @@ const updatePost = asyncHandler(async (req, res) => {
             .filter((tag) => tag)
       : post.tags,
     contentTable: contentTable || post.contentTable,
+    status: status || post.status,
   });
   await post.save();
 
@@ -152,14 +154,16 @@ const deletePost = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "Post deleted successfully"));
 });
 
-// Get paginated posts with comments and likes
+// Get paginated approved posts with comments and likes
 const getPosts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, search } = req.query;
-  const userId = req.userId; // From authentication middleware
+  const userId = req.userId;
 
-  const matchStage = search
-    ? { title: { $regex: search, $options: "i" }, isSuspended: false }
-    : { isSuspended: false };
+  const matchStage = {
+    status: "approved",
+    isSuspended: false,
+    ...(search && { title: { $regex: search, $options: "i" } }),
+  };
 
   const aggregate = Post.aggregate([
     { $match: matchStage },
@@ -414,28 +418,23 @@ const getPosts = asyncHandler(async (req, res) => {
         currentPage: result.page,
         totalPosts: result.totalDocs,
       },
-      "Posts retrieved successfully"
+      "Approved posts retrieved successfully"
     )
   );
 });
 
-// Get user's own posts
-const getMyPosts = asyncHandler(async (req, res) => {
-  const { search } = req.query;
+// Get paginated pending posts (admin only)
+const getPendingPosts = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, search } = req.query;
   const userId = req.userId;
 
-  const matchStage = search
-    ? {
-        title: { $regex: search, $options: "i" },
-        isSuspended: false,
-        author: new mongoose.Types.ObjectId(req.userId),
-      }
-    : {
-        isSuspended: false,
-        author: new mongoose.Types.ObjectId(req.userId),
-      };
+  const matchStage = {
+    status: "pending",
+    isSuspended: false,
+    author: new mongoose.Types.ObjectId(userId),
+  };
 
-  const posts = await Post.aggregate([
+  const aggregate = Post.aggregate([
     { $match: matchStage },
     {
       $lookup: {
@@ -647,8 +646,15 @@ const getMyPosts = asyncHandler(async (req, res) => {
     { $sort: { createdAt: -1 } },
   ]);
 
+  const options = {
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
+  };
+
+  const result = await Post.aggregatePaginate(aggregate, options);
+
   // Build comment tree for each post
-  posts.forEach((post) => {
+  const posts = result.docs.map((post) => {
     const commentMap = {};
     const topLevelComments = [];
 
@@ -669,11 +675,291 @@ const getMyPosts = asyncHandler(async (req, res) => {
     });
 
     post.comments = topLevelComments;
+    return post;
   });
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, posts, "My posts retrieved successfully"));
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        posts,
+        totalPages: result.totalPages,
+        currentPage: result.page,
+        totalPosts: result.totalDocs,
+      },
+      "Pending posts retrieved successfully"
+    )
+  );
+});
+
+// Get user's own posts
+const getMyPosts = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, search } = req.query;
+  const userId = req.userId;
+
+  const matchStage = {
+    isSuspended: false,
+    status: "approved",
+    author: new mongoose.Types.ObjectId(userId),
+    ...(search && { title: { $regex: search, $options: "i" } }),
+  };
+
+  const aggregate = Post.aggregate([
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+      },
+    },
+    { $unwind: "$author" },
+    {
+      $lookup: {
+        from: "comments",
+        let: { postId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$post", "$$postId"] },
+              isSuspended: false,
+            },
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "author",
+              foreignField: "_id",
+              as: "author",
+            },
+          },
+          { $unwind: "$author" },
+          {
+            $lookup: {
+              from: "likes",
+              localField: "likes",
+              foreignField: "_id",
+              as: "likes",
+            },
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "likes.likedBy",
+              foreignField: "_id",
+              as: "likeUsers",
+            },
+          },
+          {
+            $addFields: {
+              likes: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    likedBy: {
+                      $let: {
+                        vars: {
+                          user: {
+                            $arrayElemAt: [
+                              "$likeUsers",
+                              {
+                                $indexOfArray: [
+                                  "$likeUsers._id",
+                                  "$$like.likedBy",
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                        in: {
+                          _id: "$$user._id",
+                          userName: "$$user.userName",
+                          avatar: "$$user.avatar",
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              isLiked: userId
+                ? {
+                    $anyElementTrue: {
+                      $map: {
+                        input: "$likes",
+                        as: "like",
+                        in: {
+                          $eq: [
+                            "$$like.likedBy._id",
+                            new mongoose.Types.ObjectId(userId),
+                          ],
+                        },
+                      },
+                    },
+                  }
+                : false,
+            },
+          },
+          {
+            $project: {
+              content: 1,
+              "author.userName": 1,
+              "author.avatar": 1,
+              "author._id": 1,
+              createdAt: 1,
+              parentComment: 1,
+              replies: 1,
+              likeCount: { $size: "$likes" },
+              likes: 1,
+              isSuspended: 1,
+            },
+          },
+          {
+            $project: {
+              likeUsers: 0,
+            },
+          },
+        ],
+        as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "likes",
+        foreignField: "_id",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "likes.likedBy",
+        foreignField: "_id",
+        as: "likeUsers",
+      },
+    },
+    {
+      $addFields: {
+        likes: {
+          $map: {
+            input: "$likes",
+            as: "like",
+            in: {
+              likedBy: {
+                $let: {
+                  vars: {
+                    user: {
+                      $arrayElemAt: [
+                        "$likeUsers",
+                        {
+                          $indexOfArray: ["$likeUsers._id", "$$like.likedBy"],
+                        },
+                      ],
+                    },
+                  },
+                  in: {
+                    _id: "$$user._id",
+                    userName: "$$user.userName",
+                    avatar: "$$user.avatar",
+                  },
+                },
+              },
+            },
+          },
+        },
+        isLiked: userId
+          ? {
+              $anyElementTrue: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    $eq: [
+                      "$$like.likedBy._id",
+                      new mongoose.Types.ObjectId(userId),
+                    ],
+                  },
+                },
+              },
+            }
+          : false,
+      },
+    },
+    {
+      $project: {
+        title: 1,
+        content: 1,
+        image: 1,
+        catagory: 1,
+        tags: 1,
+        contentTable: 1,
+        status: 1,
+        createdAt: 1,
+        isSuspended: 1,
+        "author.userName": 1,
+        "author.avatar": 1,
+        "author._id": 1,
+        likeCount: { $size: "$likes" },
+        commentCount: { $size: "$comments" },
+        comments: 1,
+        likes: 1,
+        isLiked: 1,
+      },
+    },
+    {
+      $project: {
+        likeUsers: 0,
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
+
+  const options = {
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
+  };
+
+  const result = await Post.aggregatePaginate(aggregate, options);
+
+  // Build comment tree for each post
+  const posts = result.docs.map((post) => {
+    const commentMap = {};
+    const topLevelComments = [];
+
+    post.comments.forEach((comment) => {
+      comment.replies = [];
+      commentMap[comment._id.toString()] = comment;
+    });
+
+    post.comments.forEach((comment) => {
+      if (!comment.parentComment) {
+        topLevelComments.push(comment);
+      } else {
+        const parentId = comment.parentComment.toString();
+        if (commentMap[parentId]) {
+          commentMap[parentId].replies.push(comment);
+        }
+      }
+    });
+
+    post.comments = topLevelComments;
+    return post;
+  });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        posts,
+        totalPages: result.totalPages,
+        currentPage: result.page,
+        totalPosts: result.totalDocs,
+      },
+      "My posts retrieved successfully"
+    )
+  );
 });
 
 // Get a single post by ID
@@ -928,4 +1214,12 @@ const getPost = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, post, "Post retrieved successfully"));
 });
 
-export { createPost, deletePost, getMyPosts, getPost, getPosts, updatePost };
+export {
+  createPost,
+  deletePost,
+  getMyPosts,
+  getPendingPosts,
+  getPost,
+  getPosts,
+  updatePost,
+};

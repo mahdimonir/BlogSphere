@@ -17,9 +17,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-// Custom hook for outside click detection
 const useClickOutside = (callback) => {
   const ref = useRef(null);
   useEffect(() => {
@@ -34,22 +33,29 @@ const useClickOutside = (callback) => {
   return ref;
 };
 
-// Search Input Component
-const SearchInput = ({ value, onChange, onClear, className, autoFocus }) => (
+const SearchInput = ({
+  value,
+  onChange,
+  onClear,
+  className,
+  autoFocus,
+  onKeyDown,
+}) => (
   <div className={`relative ${className}`}>
     <input
       type="text"
       placeholder="Search posts and users"
-      className="w-full rounded-full py-2 px-4 bg-gray-100 text-sm text-gray-950 dark:text-gray-100 dark:bg-gray-700 focus:outline-none"
+      className="w-full rounded-full py-2 pl-4 pr-12 bg-gray-100 text-sm text-gray-950 dark:text-gray-100 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
       value={value}
       onChange={onChange}
+      onKeyDown={onKeyDown}
       autoFocus={autoFocus}
       aria-label="Search posts and users"
     />
-    <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300" />
+    <Search className="absolute right-8 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300" />
     {value && (
       <X
-        className="absolute right-8 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300 cursor-pointer"
+        className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-300 cursor-pointer hover:text-gray-700 dark:hover:text-gray-100"
         onClick={onClear}
         aria-label="Clear search"
       />
@@ -57,15 +63,14 @@ const SearchInput = ({ value, onChange, onClear, className, autoFocus }) => (
   </div>
 );
 
-// Navigation Links Component
 const NavLinks = ({ onClick, user, isMobile }) => {
   const links = [
     { href: "/", label: "Home" },
     { href: "/posts", label: "Posts" },
     ...(user
       ? [
-          { href: "/posts/create", label: "Create Post" },
-          { href: `/users/${user.userName}`, label: "Profile" },
+          { href: "/profile/create", label: "Create Post" },
+          { href: "/profile", label: "Profile" },
         ]
       : []),
     { href: "/users", label: "Users" },
@@ -92,16 +97,23 @@ const NavLinks = ({ onClick, user, isMobile }) => {
           {link.label}
         </Link>
       ))}
+      {isMobile && (
+        <div className="mt-2">
+          <UserActions user={user} onClick={onClick} />
+        </div>
+      )}
     </div>
   );
 };
 
-// User Actions Component
-const UserActions = ({ user, logout, authLoading, model }) => {
+const UserActions = ({ user, logout, authLoading, model, onClick }) => {
   if (authLoading || model) return null;
   return user ? (
     <button
-      onClick={logout}
+      onClick={() => {
+        logout();
+        if (onClick) onClick();
+      }}
       className="text-sm text-white bg-red-400 hover:bg-red-500 hover:shadow text-center px-3 py-1 rounded-sm w-full"
       aria-label="Logout"
     >
@@ -111,6 +123,7 @@ const UserActions = ({ user, logout, authLoading, model }) => {
     <Link
       href="/login"
       className="text-sm bg-blue-500 text-white text-center px-3 py-1 rounded-sm hover:bg-blue-600 block w-full"
+      onClick={onClick}
       aria-label="Sign In"
     >
       Sign In
@@ -118,7 +131,6 @@ const UserActions = ({ user, logout, authLoading, model }) => {
   );
 };
 
-// User Section Component
 const UserSection = ({
   user,
   authLoading,
@@ -128,14 +140,19 @@ const UserSection = ({
   markNotificationAsRead,
   notificationRef,
   model,
+  isMobile,
 }) => {
-  if (authLoading || (model && window.innerWidth < 768)) return null;
+  if (authLoading || (model && isMobile)) return null;
   if (!user) return null;
 
   return (
     <>
       <div className="relative" ref={notificationRef}>
-        <button onClick={toggleNotificationDropdown} aria-label="Notifications">
+        <button
+          onClick={toggleNotificationDropdown}
+          aria-label="Notifications"
+          aria-expanded={notificationOpen}
+        >
           <Bell className="h-5 w-5 text-gray-900 dark:text-gray-100" />
           {notifications.length > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
@@ -144,7 +161,7 @@ const UserSection = ({
           )}
         </button>
         {notificationOpen && (
-          <div className="absolute top-full right-0 md:left-1/2 md:-translate-x-1/2 mt-2 w-64 bg-white dark:bg-gray-900 shadow-lg rounded-lg z-50 max-h-[300px] overflow-y-auto">
+          <div className="absolute top-full right-0 md:left-1/2 md:-translate-x-1/2 mt-3 w-64 bg-white dark:bg-gray-900 shadow-lg rounded-lg z-50 max-h-[300px] overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-600 dark:text-gray-300">
                 No notifications
@@ -190,7 +207,7 @@ const UserSection = ({
         )}
       </div>
       <Link
-        href={`/users/${user.userName}`}
+        href="/profile"
         className="border-2 w-7 h-7 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100"
         aria-label="Profile"
       >
@@ -217,62 +234,91 @@ export default function Header() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(
+    typeof window !== "undefined" && localStorage.getItem("Dark") === "true"
+  );
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const { user, logout, loading: authLoading } = useAuth();
   const [model, setModel] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [focusedResult, setFocusedResult] = useState(null);
+  const searchCache = useRef(new Map());
+  const abortControllerRef = useRef(null);
 
   const searchRef = useClickOutside(() => {
-    setSearchTerm("");
     setSearchOpen(false);
+    setSearchTerm("");
+    setPosts([]);
+    setUsers([]);
+    setError(null);
+    setFocusedResult(null);
   });
   const navRef = useClickOutside(() => setNavOpen(false));
   const mobileMenuRef = useClickOutside(() => setModel(false));
   const notificationRef = useClickOutside(() => setNotificationOpen(false));
 
-  // Theme handling
   useEffect(() => {
-    const isDark = localStorage.getItem("Dark") === "true";
-    setDark(isDark);
-    document.documentElement.classList.toggle("dark", isDark);
-  }, []);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768 && searchOpen) {
+        setSearchOpen(false);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [searchOpen]);
 
   useEffect(() => {
     localStorage.setItem("Dark", dark.toString());
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  // Debounce search input
   useEffect(() => {
     const timeout = setTimeout(() => {
       setDebounceQuery(searchTerm.trim());
-    }, 500);
+    }, 300);
     return () => clearTimeout(timeout);
   }, [searchTerm]);
 
-  // Fetch posts and users
   useEffect(() => {
     const fetchData = async () => {
       if (!debounceQuery) {
         setPosts([]);
         setUsers([]);
         setError(null);
+        setLoading(false);
+        return;
+      }
+
+      if (searchCache.current.has(debounceQuery)) {
+        const { posts, users } = searchCache.current.get(debounceQuery);
+        setPosts(posts);
+        setUsers(users);
+        setLoading(false);
         return;
       }
 
       setLoading(true);
       setError(null);
 
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
       try {
         const [postsResult, usersResult] = await Promise.allSettled([
           axiosInstance.get("/search/posts", {
-            params: { query: debounceQuery },
+            params: { query: debounceQuery, limit: 5 },
+            signal: abortControllerRef.current.signal,
           }),
           axiosInstance.get("/search/users", {
-            params: { query: debounceQuery },
+            params: { query: debounceQuery, limit: 5 },
+            signal: abortControllerRef.current.signal,
           }),
         ]);
 
@@ -287,17 +333,17 @@ export default function Header() {
 
         setPosts(postsData);
         setUsers(usersData);
+        searchCache.current.set(debounceQuery, {
+          posts: postsData,
+          users: usersData,
+        });
 
-        if (
-          postsResult.status === "rejected" &&
-          usersResult.status === "rejected"
-        ) {
-          setError("Failed to load search results.");
+        if (postsData.length === 0 && usersData.length === 0) {
+          setError("No results found for this query.");
         }
       } catch (error) {
-        setError(
-          error.response?.data?.message || "Failed to load search results."
-        );
+        if (error.name === "AbortError") return;
+        setError("Failed to load search results.");
         setPosts([]);
         setUsers([]);
       } finally {
@@ -306,9 +352,14 @@ export default function Header() {
     };
 
     fetchData();
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [debounceQuery]);
 
-  // Fetch notifications
   useEffect(() => {
     const fetchNotifications = async () => {
       if (!user) {
@@ -322,9 +373,7 @@ export default function Header() {
         });
         setNotifications(response.data.data.notifications || []);
       } catch (error) {
-        setError(
-          error.response?.data?.message || "Failed to load notifications."
-        );
+        setError("Failed to load notifications.");
         setNotifications([]);
       }
     };
@@ -332,28 +381,76 @@ export default function Header() {
     fetchNotifications();
   }, [user]);
 
-  // Mark notification as read
   const markNotificationAsRead = async (id) => {
     try {
       await axiosInstance.patch(`/notifications/${id}/read`, {});
       setNotifications((prev) => prev.filter((n) => n._id !== id));
     } catch (error) {
-      setError(
-        error.response?.data?.message || "Failed to mark notification as read."
-      );
+      setError("Failed to mark notification as read.");
     }
   };
 
   const toggleTheme = () => setDark((prev) => !prev);
-  const toggleNavDropdown = () => setNavOpen((prev) => !prev);
   const toggleNotificationDropdown = () => setNotificationOpen((prev) => !prev);
-  const toggleSearch = () => setSearchOpen((prev) => !prev);
+  const toggleSearch = () => {
+    setSearchOpen((prev) => !prev);
+    if (!searchOpen) {
+      setTimeout(() => {
+        searchRef.current?.querySelector("input")?.focus();
+      }, 100);
+    }
+  };
+  const toggleNav = () => setNavOpen((prev) => !prev);
   const modelHandler = () => setModel(true);
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === "Escape") {
+      setSearchTerm("");
+      setSearchOpen(false);
+      setFocusedResult(null);
+      return;
+    }
+
+    const results = [...users, ...posts];
+    if (results.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedResult((prev) => {
+        if (prev === null || prev === results.length - 1) return 0;
+        return prev + 1;
+      });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedResult((prev) => {
+        if (prev === null || prev === 0) return results.length - 1;
+        return prev - 1;
+      });
+    } else if (e.key === "Enter" && focusedResult !== null) {
+      e.preventDefault();
+      const item = results[focusedResult];
+      const href = item.userName
+        ? `/users/${item.userName}`
+        : `/posts/${item._id}`;
+      window.location.href = href;
+      setSearchTerm("");
+      setSearchOpen(false);
+      setFocusedResult(null);
+    }
+  };
+
+  const handleResultClick = useCallback(() => {
+    setSearchTerm("");
+    setSearchOpen(false);
+    setPosts([]);
+    setUsers([]);
+    setError(null);
+    setFocusedResult(null);
+  }, []);
 
   return (
     <nav className="sticky top-0 z-50 bg-gray-50 dark:bg-gray-900 shadow-xl">
       <div className="max-w-[1200px] mx-auto px-4 py-3 flex items-center justify-between">
-        {/* Logo */}
         <Link
           href="/"
           className="text-lg font-bold text-blue-500"
@@ -362,14 +459,18 @@ export default function Header() {
           BlogSphere
         </Link>
 
-        {/* Search (Desktop) */}
-        <div className="flex-1 mx-4 hidden md:block">
+        <div className="flex-1 mx-4 hidden md:block relative" ref={searchRef}>
           <SearchInput
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            onClear={() => setSearchTerm("")}
+            onClear={() => {
+              setSearchTerm("");
+              setPosts([]);
+              setUsers([]);
+              setError(null);
+            }}
             className="max-w-[28rem] mx-auto"
-            ref={searchRef}
+            onKeyDown={handleSearchKeyDown}
           />
         </div>
         <div className="md:hidden">
@@ -378,10 +479,9 @@ export default function Header() {
           </button>
         </div>
 
-        {/* Full-Screen Search (Mobile) */}
         {searchOpen && (
           <div
-            className="fixed top-16 left-0 w-full h-screen bg-gray-50 dark:bg-gray-900 flex flex-col md:hidden z-50"
+            className="fixed top-0 left-0 w-full h-screen bg-gray-50 dark:bg-gray-900 flex flex-col md:hidden z-50 transition-opacity duration-200"
             ref={searchRef}
           >
             <div className="flex items-center p-4 border-b border-gray-200 dark:border-gray-700">
@@ -391,15 +491,22 @@ export default function Header() {
                 onClear={() => {
                   setSearchTerm("");
                   setSearchOpen(false);
+                  setPosts([]);
+                  setUsers([]);
+                  setError(null);
                 }}
                 className="flex-1"
                 autoFocus
+                onKeyDown={handleSearchKeyDown}
               />
               <button
                 className="ml-2 text-gray-900 dark:text-gray-100"
                 onClick={() => {
                   setSearchTerm("");
                   setSearchOpen(false);
+                  setPosts([]);
+                  setUsers([]);
+                  setError(null);
                 }}
                 aria-label="Close search"
               >
@@ -409,38 +516,52 @@ export default function Header() {
           </div>
         )}
 
-        {/* Search Results Dropdown */}
-        {debounceQuery && (
+        {debounceQuery && (searchOpen || !isMobile) && (
           <div
-            className={`absolute left-0 right-0 mx-auto w-full max-w-[28rem] min-w-[20rem] bg-white dark:bg-gray-900 shadow-lg rounded-lg max-h-[400px] overflow-y-auto z-40 ${
-              searchOpen ? "top-[120px] mt-8" : "top-[80px] mt-6"
+            className={`absolute left-0 right-0 mx-auto w-full max-w-[28rem] bg-white dark:bg-gray-900 shadow-lg rounded-lg max-h-[70vh] overflow-y-auto z-50 transition-all duration-200 ${
+              searchOpen ? "top-20 md:top-[60px]" : "top-[60px]"
             }`}
+            role="listbox"
+            aria-label="Search results"
           >
             {loading ? (
-              <div className="flex justify-center py-4">
+              <div className="p-4 flex justify-center items-center">
                 <Loading />
               </div>
             ) : error ? (
-              <div className="p-4 text-center text-red-500">{error}</div>
+              <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                {error}
+              </div>
             ) : users.length === 0 && posts.length === 0 ? (
               <div className="p-4 text-center text-gray-600 dark:text-gray-300">
-                No results found.
+                No results found for "{debounceQuery}".
               </div>
             ) : (
               <div className="p-4">
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  Found {users.length + posts.length} result
+                  {users.length + posts.length !== 1 ? "s" : ""}
+                </div>
                 {users.length > 0 && (
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
                       Users
                     </h3>
-                    {users.map((user) => (
-                      <div className="mb-2" key={user._id}>
+                    {users.map((user, index) => (
+                      <div
+                        key={user._id}
+                        className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                          focusedResult === index
+                            ? "bg-gray-100 dark:bg-gray-800"
+                            : ""
+                        }`}
+                        role="option"
+                        aria-selected={focusedResult === index}
+                      >
                         <UserCard
                           user={user}
-                          onClick={() => {
-                            setSearchTerm("");
-                            setSearchOpen(false);
-                          }}
+                          compact
+                          onClick={handleResultClick}
                         />
                       </div>
                     ))}
@@ -451,15 +572,21 @@ export default function Header() {
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
                       Posts
                     </h3>
-                    {posts.map((post) => (
-                      <div className="mb-2" key={post._id}>
+                    {posts.map((post, index) => (
+                      <div
+                        key={post._id}
+                        className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                          focusedResult === users.length + index
+                            ? "bg-gray-100 dark:bg-gray-800"
+                            : ""
+                        }`}
+                        role="option"
+                        aria-selected={focusedResult === users.length + index}
+                      >
                         <PostCard
                           post={post}
                           compact
-                          onClick={() => {
-                            setSearchTerm("");
-                            setSearchOpen(false);
-                          }}
+                          onClick={handleResultClick}
                         />
                       </div>
                     ))}
@@ -470,9 +597,7 @@ export default function Header() {
           </div>
         )}
 
-        {/* Right Side: Theme, Notifications, Profile, Menu */}
         <div className="flex items-center gap-3">
-          {/* Theme Toggle */}
           <div
             className="w-[50px] h-[23px] overflow-hidden rounded-full shadow-inner bg-gray-300 dark:bg-white relative flex justify-center items-center cursor-pointer"
             onClick={toggleTheme}
@@ -495,7 +620,6 @@ export default function Header() {
             </div>
           </div>
 
-          {/* User Section */}
           <div className="flex items-center gap-3">
             <UserSection
               user={user}
@@ -506,18 +630,19 @@ export default function Header() {
               markNotificationAsRead={markNotificationAsRead}
               notificationRef={notificationRef}
               model={model}
+              isMobile={isMobile}
             />
           </div>
 
-          {/* Navigation Dropdown (Desktop) */}
           <div
             className={model ? "hidden" : "relative hidden md:block"}
             ref={navRef}
           >
             <button
               className="flex items-center text-sm text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400"
-              onClick={toggleNavDropdown}
-              aria-label="Toggle navigation menu"
+              onClick={toggleNav}
+              aria-label="Navigation menu"
+              aria-expanded={navOpen}
             >
               Menu
               <ChevronDown className="ml-1 h-4 w-4" />
@@ -533,7 +658,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* User Actions (Desktop) */}
           <div className={model ? "hidden" : "hidden md:block"}>
             <UserActions
               user={user}
@@ -543,7 +667,6 @@ export default function Header() {
             />
           </div>
 
-          {/* Mobile Menu Toggle */}
           <button
             className="md:hidden border rounded-sm text-gray-950 dark:text-gray-100"
             onClick={modelHandler}
@@ -552,11 +675,10 @@ export default function Header() {
             <AlignJustify className="h-5 w-5" />
           </button>
 
-          {/* Mobile Menu */}
           <div
             className={`fixed top-0 h-screen md:hidden ${
               model
-                ? "right-0 bg-white dark:bg-gray-900 w-[16rem] p-4"
+                ? "right-0 bg-white dark:bg-gray-900 w-[12rem] p-4"
                 : "-left-full bg-transparent"
             } transition-all duration-300 ease-in-out z-50`}
             ref={mobileMenuRef}
@@ -570,7 +692,7 @@ export default function Header() {
             </button>
             {user && (
               <Link
-                href={`/users/${user.userName}`}
+                href="/profile"
                 className="flex justify-center mb-6"
                 onClick={() => setModel(false)}
               >
@@ -578,13 +700,13 @@ export default function Header() {
                   <Image
                     src={user.avatar}
                     alt="User avatar"
-                    width={48}
-                    height={48}
+                    width={64}
+                    height={64}
                     className="rounded-full border-2 border-gray-900 dark:border-gray-100 object-cover"
                   />
                 ) : (
-                  <div className="border-2 w-12 h-12 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100">
-                    <ProfileIcon className="h-10 w-10 p-1 text-gray-900 dark:text-gray-100" />
+                  <div className="border-2 w-16 h-16 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100">
+                    <ProfileIcon className="h-12 w-12 p-1 text-gray-900 dark:text-gray-100" />
                   </div>
                 )}
               </Link>
@@ -594,14 +716,6 @@ export default function Header() {
               onClick={() => setModel(false)}
               isMobile={true}
             />
-            <div className="mt-4">
-              <UserActions
-                user={user}
-                logout={logout}
-                authLoading={authLoading}
-                model={model}
-              />
-            </div>
           </div>
         </div>
       </div>

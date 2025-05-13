@@ -295,10 +295,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     throwIf(!user, new ApiError(401, "Invalid refresh token"));
 
-    throwIf(
-      incomingRefreshToken !== user?.refreshToken,
-      new ApiError(401, "Refresh token is expired or used")
-    );
+    // throwIf(
+    //   incomingRefreshToken !== user?.refreshToken,
+    //   new ApiError(401, "Refresh token is expired or used")
+    // );
 
     const { accessToken, newRefreshToken } =
       await generateAccessAndRefreshToken(user._id);

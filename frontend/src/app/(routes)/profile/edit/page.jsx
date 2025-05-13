@@ -12,6 +12,7 @@ export default function UpdateProfile() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [formData, setFormData] = useState({
+    email: "",
     name: "",
     bio: "",
     avatar: "",
@@ -34,8 +35,8 @@ export default function UpdateProfile() {
   const fetchProfile = async () => {
     try {
       const response = await axiosInstance.get("/users/profile");
-      const { name, bio, avatar, userName } = response.data.data;
-      setFormData({ name, bio, avatar, userName });
+      const { name, bio, avatar, userName, email } = response.data.data;
+      setFormData({ name, bio, avatar, userName, email });
       setPreview(avatar);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load profile");
@@ -68,6 +69,7 @@ export default function UpdateProfile() {
         name: formData.name,
         bio: formData.bio,
         userName: formData.userName,
+        email: formData.email,
       });
       setFormData((prev) => ({
         ...prev,
@@ -100,7 +102,6 @@ export default function UpdateProfile() {
         "user",
         JSON.stringify({
           ...JSON.parse(localStorage.getItem("user")),
-          userName: formData.userName,
           name: formData.name,
         })
       );
@@ -172,6 +173,23 @@ export default function UpdateProfile() {
           </div>
         </div>
 
+        {/* Email */}
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium mb-2">
+            Email
+          </label>
+          <input
+            type="text"
+            id="email"
+            name="email"
+            value={formData.email}
+            disabled
+            className="w-full p-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-not-allowed"
+            aria-required="true"
+            title="Email is not editable"
+          />
+        </div>
+
         {/* Username */}
         <div>
           <label htmlFor="userName" className="block text-sm font-medium mb-2">
@@ -182,11 +200,10 @@ export default function UpdateProfile() {
             id="userName"
             name="userName"
             value={formData.userName}
-            onChange={handleInputChange}
-            className="w-full p-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled
+            className="w-full p-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-not-allowed"
             aria-required="true"
-            pattern="[a-zA-Z0-9_]+"
-            title="Username must be alphanumeric with underscores"
+            title="Username cannot be changed"
           />
         </div>
 
@@ -231,7 +248,7 @@ export default function UpdateProfile() {
           </button>
           <button
             type="button"
-            onClick={() => router.push(`/users/${formData.userName}`)}
+            onClick={() => router.push("/profile")}
             className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full"
             aria-label="Cancel and return to profile"
           >

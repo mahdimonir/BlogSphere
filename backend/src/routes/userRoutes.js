@@ -17,7 +17,7 @@ const router = Router();
 router.route("/").get(getAllUser);
 router.route("/profile").get(verifyJWT, getUserProfile);
 router.route("/:userName").get(getSingleUser);
-router.route("/:userName/follow").patch(verifyJWT, followUser);
+router.route("/follow").post(verifyJWT, followUser);
 
 // Suspended Posts and Comments
 router.route("/suspend/posts").get(verifyJWT, getSuspendedPosts);

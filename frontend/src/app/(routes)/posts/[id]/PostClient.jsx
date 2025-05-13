@@ -1,6 +1,7 @@
 "use client";
 
 import { Demo_Image, Demo_Image2 } from "@/app/assets/demo";
+import Loading from "@/app/components/Loading";
 import {
   capitalizeFirstLetter,
   formatDate,
@@ -368,12 +369,9 @@ export default function PostClient({ id }) {
 
   const handleSuspendPost = async () => {
     try {
-      const response = await axiosInstance.patch(
-        `/admin/suspension/post/${id}`,
-        {
-          isSuspended: !post.isSuspended,
-        }
-      );
+      const response = await axiosInstance.patch(`/admin/suspend/post/${id}`, {
+        isSuspended: !post.isSuspended,
+      });
       setPost((prev) => ({
         ...prev,
         isSuspended: response.data.data.isSuspended,
@@ -391,7 +389,7 @@ export default function PostClient({ id }) {
   const handleSuspendComment = async (commentId) => {
     try {
       const response = await axiosInstance.patch(
-        `/admin/suspension/comment/${commentId}`,
+        `/admin/suspend/comment/${commentId}`,
         {
           isSuspended: !localComments.find((c) => c._id === commentId)
             .isSuspended,
@@ -624,11 +622,7 @@ export default function PostClient({ id }) {
   };
 
   if (loading) {
-    return (
-      <div className="text-center text-gray-600 dark:text-gray-300 py-10">
-        Loading post...
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!post) {
@@ -643,6 +637,10 @@ export default function PostClient({ id }) {
   const isAdmin = user && user.role === "admin";
   const parsedTags =
     typeof post.tags === "string" ? JSON.parse(post.tags) : post.tags || [];
+  const parsedContentTable =
+    typeof post.contentTable === "string"
+      ? JSON.parse(post.contentTable)
+      : post.contentTable || [];
   const secureImageUrl =
     post.image &&
     typeof post.image === "string" &&
@@ -754,16 +752,23 @@ export default function PostClient({ id }) {
         )}
       </div>
       {/* Table of Contents (Optional) */}
-      {post.contentTable?.length > 0 && (
+      {/* {parsedContentTable.length > 0 && (
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
             Table of Contents
           </h2>
-          <pre className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-auto">
-            {post.contentTable[0]}
+          <pre className="bg-gray-50 dark:bg-gray-900 flex flex-wrap gap-2 p-4 rounded-lg overflow-auto">
+            {parsedContentTable.map((item, index) => (
+              <span
+                key={index}
+                className="bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-3 rounded-lg text-xs font-medium"
+              >
+                {capitalizeFirstLetter(item)}
+              </span>
+            ))}
           </pre>
         </div>
-      )}
+      )} */}
       {/* 6th: Likes, Comments, Action (Dropdown) */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <button
@@ -816,7 +821,7 @@ export default function PostClient({ id }) {
                 {isAuthor && (
                   <>
                     <Link
-                      href={`/posts/edit/${id}`}
+                      href={`/profile/edit/${id}`}
                       className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
                     >
                       <Edit size={16} className="mr-2" />

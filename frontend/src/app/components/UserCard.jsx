@@ -1,27 +1,47 @@
 "use client";
 
-import { capitalizeFirstLetter } from "@/app/configs/constants";
+import { capitalizeFirstLetter, formatDate } from "@/app/configs/constants";
 import axiosInstance from "@/app/utils/axiosConfig";
 import { useAuth } from "@/context/AuthContext";
-import { Ban, CheckCircle, Edit, Loader2 } from "lucide-react";
+import {
+  Ban,
+  CheckCircle,
+  Edit,
+  Loader2,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "react-hot-toast";
 import { Demo_Image } from "../assets/demo";
 
-export default function UserCard({ user, onClick }) {
+export default function UserCard({ user, onClick, compact = false }) {
   const { user: currentUser, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [isSuspended, setIsSuspended] = useState(user.isSuspended || false);
   const [suspending, setSuspending] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(
+    currentUser &&
+      Array.isArray(user.followers) &&
+      user.followers.some((f) => f.userName === currentUser.userName)
+  );
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const {
     name = "Unknown User",
     userName = "unknown",
     avatar = Demo_Image,
+    bio = "",
+    followers = [],
+    following = [],
+    isVerified = false,
+    createdAt,
   } = user;
 
-  // Ensure the avatar URL uses https if possible
   const secureAvatarUrl =
     avatar && typeof avatar === "string" && avatar.startsWith("http://")
       ? avatar.replace("http://", "https://")
@@ -32,106 +52,233 @@ export default function UserCard({ user, onClick }) {
     setSuspending(true);
     setError(null);
     try {
-      const response = await axiosInstance.patch(`/admin/suspend/${userName}`);
-      setIsSuspended(response.data.data.isSuspended);
-    } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to update suspension status"
+      const response = await axiosInstance.patch(
+        `/admin/suspend/user/${userName}`,
+        {},
+        { withCredentials: true }
       );
-      console.error(err);
+      setIsSuspended(response.data.data.isSuspended);
+      toast.success(
+        response.data.message ||
+          (isSuspended ? "User unsuspended" : "User suspended")
+      );
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to update suspension status";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSuspending(false);
     }
   };
 
+  const handleFollow = async () => {
+    if (!currentUser) {
+      router.push("/login");
+      return;
+    }
+    if (currentUser.userName === userName) return;
+
+    setIsFollowLoading(true);
+    setError(null);
+    try {
+      const response = await axiosInstance.post(
+        "/users/follow",
+        { userName },
+        { withCredentials: true }
+      );
+      setIsFollowing(response.data.data.isFollowing);
+      toast.success(
+        response.data.message ||
+          (response.data.data.isFollowing ? "Followed" : "Unfollowed")
+      );
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to update follow status";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="rounded-lg p-4 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200">
+        <p>{error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-lg">
-      {/* Avatar Section */}
-      <div className="relative">
-        <div className="flex justify-center items-center my-4">
+    <article
+      className={`rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-md ${
+        compact ? "p-2" : "p-4"
+      }`}
+    >
+      <section className="flex items-center gap-3">
+        <Link href={`/users/${userName}`} onClick={onClick}>
           {secureAvatarUrl ? (
             <Image
               src={secureAvatarUrl}
-              alt={userName}
-              width={80}
-              height={80}
-              className="object-cover rounded-full border-2 border-gray-200 dark:border-gray-700"
+              alt={`${userName}'s avatar`}
+              width={compact ? 40 : 64}
+              height={compact ? 40 : 64}
+              className="rounded-full border border-gray-200 dark:border-gray-700 object-cover"
               unoptimized
+              onError={(e) => {
+                e.target.src = Demo_Image;
+              }}
             />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-2xl font-bold">
+            <div
+              className={`${
+                compact ? "w-10 h-10" : "w-16 h-16"
+              } rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xl font-bold`}
+            >
               {userName[0]?.toUpperCase() || "?"}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Content Section */}
-      <div className="p-4 text-center">
-        {/* Name */}
-        <h3 className="font-bold text-lg mb-1">
-          {capitalizeFirstLetter(name || userName)}
-        </h3>
-
-        {/* Username */}
-        <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-          @{capitalizeFirstLetter(userName)}
-        </p>
-
-        {/* Actions */}
-        <div className="flex flex-col gap-2">
-          <Link
-            href={`/users/${userName}`}
-            onClick={onClick}
-            className="inline-block px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 text-sm"
-          >
-            View Profile
+        </Link>
+        <div className="flex-1">
+          <Link href={`/users/${userName}`} onClick={onClick}>
+            <h3 className={`font-bold ${compact ? "text-sm" : "text-lg"}`}>
+              {capitalizeFirstLetter(name || userName)}
+              {isSuspended && (
+                <span className="text-red-500 text-xs"> (Suspended)</span>
+              )}
+            </h3>
+            <p className={`text-gray-600 dark:text-gray-400 ${compact ? "text-xs" : "text-sm"}`}>
+              @{capitalizeFirstLetter(userName)}
+            </p>
           </Link>
-
-          {/* Edit Button (Owner) */}
-          {!authLoading && currentUser && currentUser.userName === userName && (
-            <Link
-              href="/profile/edit"
-              className="inline-block px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-sm flex items-center justify-center gap-2"
-            >
-              <Edit className="h-4 w-4" /> Edit Profile
-            </Link>
+          {compact && bio && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">
+              {bio}
+            </p>
           )}
-
-          {/* Suspend Button (Admin) */}
-          {!authLoading &&
-            currentUser &&
-            currentUser.role === "admin" &&
-            currentUser.userName !== userName && (
-              <button
-                onClick={handleSuspend}
-                disabled={suspending}
-                className={`px-4 py-2 rounded-full text-sm flex items-center justify-center gap-2 ${
-                  isSuspended
-                    ? "bg-green-500 text-white hover:bg-green-600"
-                    : "bg-red-500 text-white hover:bg-red-600"
-                } ${suspending ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                {suspending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isSuspended ? (
-                  <>
-                    <CheckCircle className="h-4 w-4" /> Unsuspend
-                  </>
-                ) : (
-                  <>
-                    <Ban className="h-4 w-4" /> Suspend
-                  </>
-                )}
-              </button>
-            )}
         </div>
+      </section>
 
-        {/* Error Message */}
-        {error && (
-          <p className="mt-2 text-red-600 dark:text-red-400 text-xs">{error}</p>
-        )}
-      </div>
-    </div>
+      {!compact && (
+        <>
+          <section className={`text-center ${compact ? "mt-2" : "mt-4"}`}>
+            <div className="flex justify-center items-center gap-2 mb-3">
+              {isVerified ? (
+                <>
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Verified
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Not Verified
+                </span>
+              )}
+            </div>
+
+            {bio && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+                {bio}
+              </p>
+            )}
+
+            <div className="flex justify-center gap-4 mb-4 text-sm text-gray-600 dark:text-gray-400">
+              <span>
+                <strong>{Array.isArray(followers) ? followers.length : 0}</strong>{" "}
+                Followers
+              </span>
+              <span>
+                <strong>{Array.isArray(following) ? following.length : 0}</strong>{" "}
+                Following
+              </span>
+            </div>
+
+            <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+              Joined {formatDate(createdAt)}
+            </p>
+
+            <div className="flex flex-wrap justify-center gap-2">
+              <Link
+                href={`/users/${userName}`}
+                onClick={onClick}
+                className="inline-block px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 text-sm transition-colors"
+                aria-label={`View ${userName}'s profile`}
+              >
+                View Profile
+              </Link>
+
+              {!authLoading && currentUser && currentUser.userName !== userName && (
+                <button
+                  onClick={handleFollow}
+                  disabled={isFollowLoading}
+                  className={`px-4 py-2 rounded-full text-sm flex items-center justify-center gap-2 ${
+                    isFollowing
+                      ? "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600"
+                      : "bg-blue-500 text-white hover:bg-blue-600"
+                  } ${isFollowLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                  aria-label={
+                    isFollowing ? `Unfollow ${userName}` : `Follow ${userName}`
+                  }
+                >
+                  {isFollowLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isFollowing ? (
+                    <>
+                      <UserMinus className="h-4 w-4" /> Unfollow
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4" /> Follow
+                    </>
+                  )}
+                </button>
+              )}
+
+              {!authLoading && currentUser && currentUser.userName === userName && (
+                <Link
+                  href="/profile/edit"
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-sm flex items-center justify-center gap-2 transition-colors"
+                  aria-label="Edit your profile"
+                >
+                  <Edit className="h-4 w-4" /> Edit Profile
+                </Link>
+              )}
+
+              {!authLoading &&
+                currentUser &&
+                currentUser.role === "admin" &&
+                currentUser.userName !== userName && (
+                  <button
+                    onClick={handleSuspend}
+                    disabled={suspending}
+                    className={`px-4 py-2 rounded-full text-sm flex items-center justify-center gap-2 ${
+                      isSuspended
+                        ? "bg-green-500 text-white hover:bg-green-600"
+                        : "bg-red-500 text-white hover:bg-red-600"
+                    } ${suspending ? "opacity-50 cursor-not-allowed" : ""}`}
+                    aria-label={
+                      isSuspended ? `Unsuspend ${userName}` : `Suspend ${userName}`
+                    }
+                  >
+                    {suspending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isSuspended ? (
+                      <>
+                        <CheckCircle className="h-4 w-4" /> Unsuspend
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="h-4 w-4" /> Suspend
+                      </>
+                    )}
+                  </button>
+                )}
+            </div>
+          </section>
+        </>
+      )}
+    </article>
   );
 }

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Comment } from "../models/commentModel.js";
 import { Like } from "../models/likeModel.js";
 import { Post } from "../models/postModel.js";
@@ -33,7 +34,15 @@ const createCommentDocument = async ({
 
   await comment.populate({ path: "author", select: "userName avatar" });
 
-  return comment;
+  // Initialize fields expected by frontend
+  return {
+    ...comment.toObject(),
+    replies: [],
+    likeCount: 0,
+    likes: [],
+    isLiked: false,
+    isSuspended: false,
+  };
 };
 
 // Create a top-level comment
@@ -43,33 +52,50 @@ const createComment = asyncHandler(async (req, res) => {
 
   throwIf(!postId, new ValidationError("Post ID is required"));
 
-  const post = await Post.findById(postId).populate("author", "userName");
-  throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  const comment = await createCommentDocument({
-    content,
-    postId,
-    authorId: userId,
-  });
+  try {
+    const post = await Post.findById(postId)
+      .populate("author", "userName")
+      .session(session);
+    throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
-  await Post.findByIdAndUpdate(postId, {
-    $push: { comments: comment._id },
-    $inc: { commentCount: 1 },
-  });
-
-  // Notify post author if not the commenter
-  if (post.author._id.toString() !== userId) {
-    await createNotification({
-      userId: post.author._id,
-      message: `${req.user.userName} commented on your post: ${post.title}`,
-      type: "comment",
-      link: `/posts/${post._id}`,
+    const comment = await createCommentDocument({
+      content,
+      postId,
+      authorId: userId,
     });
-  }
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, comment, "Comment added successfully"));
+    await Post.findByIdAndUpdate(
+      postId,
+      {
+        $push: { comments: comment._id },
+        $inc: { commentCount: 1 },
+      },
+      { session }
+    );
+
+    // Notify post author if not the commenter
+    if (post.author._id.toString() !== userId) {
+      await createNotification({
+        userId: post.author._id,
+        message: `${req.user.userName} commented on your post: ${post.title}`,
+        type: "comment",
+        link: `/posts/${post._id}`,
+      });
+    }
+
+    await session.commitTransaction();
+    return res
+      .status(201)
+      .json(new ApiResponse(201, comment, "Comment added successfully"));
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
 });
 
 // Create a nested comment (reply)
@@ -82,57 +108,73 @@ const createNestedComment = asyncHandler(async (req, res) => {
     new ValidationError("Parent comment ID is required")
   );
 
-  const parentComment = await Comment.findById(parentCommentId).populate(
-    "author",
-    "userName"
-  );
-  throwIf(
-    !parentComment || parentComment.isSuspended,
-    new NotFoundError("Parent comment not found")
-  );
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  const postId = parentComment.post;
-  const post = await Post.findById(postId).populate("author", "userName");
-  throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
+  try {
+    const parentComment = await Comment.findById(parentCommentId)
+      .populate("author", "userName")
+      .session(session);
+    throwIf(
+      !parentComment || parentComment.isSuspended,
+      new NotFoundError("Parent comment not found")
+    );
 
-  let depth = 0;
-  let current = parentComment;
-  while (current && current.parentComment) {
-    depth++;
-    if (depth > 5) {
-      throw new ValidationError("Maximum reply depth exceeded");
+    const postId = parentComment.post;
+    const post = await Post.findById(postId)
+      .populate("author", "userName")
+      .session(session);
+    throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
+
+    let depth = 0;
+    let current = parentComment;
+    while (current && current.parentComment) {
+      depth++;
+      if (depth > 5) {
+        throw new ValidationError("Maximum reply depth exceeded");
+      }
+      current = await Comment.findById(current.parentComment).session(session);
     }
-    current = await Comment.findById(current.parentComment);
-  }
 
-  const comment = await createCommentDocument({
-    content,
-    postId,
-    authorId: userId,
-    parentCommentId,
-  });
-
-  await Comment.findByIdAndUpdate(parentCommentId, {
-    $push: { replies: comment._id },
-  });
-
-  await Post.findByIdAndUpdate(postId, {
-    $inc: { commentCount: 1 },
-  });
-
-  // Notify parent comment author if not the replier
-  if (parentComment.author._id.toString() !== userId) {
-    await createNotification({
-      userId: parentComment.author._id,
-      message: `${req.user.userName} replied to your comment on: ${post.title}`,
-      type: "comment",
-      link: `/posts/${post._id}`,
+    const comment = await createCommentDocument({
+      content,
+      postId,
+      authorId: userId,
+      parentCommentId,
     });
-  }
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, comment, "Reply added successfully"));
+    await Comment.findByIdAndUpdate(
+      parentCommentId,
+      { $push: { replies: comment._id } },
+      { session }
+    );
+
+    await Post.findByIdAndUpdate(
+      postId,
+      { $inc: { commentCount: 1 } },
+      { session }
+    );
+
+    // Notify parent comment author if not the replier
+    if (parentComment.author._id.toString() !== userId) {
+      await createNotification({
+        userId: parentComment.author._id,
+        message: `${req.user.userName} replied to your comment on: ${post.title}`,
+        type: "comment",
+        link: `/posts/${post._id}`,
+      });
+    }
+
+    await session.commitTransaction();
+    return res
+      .status(201)
+      .json(new ApiResponse(201, comment, "Reply added successfully"));
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
 });
 
 // Update a comment
@@ -153,8 +195,7 @@ const updateComment = asyncHandler(async (req, res) => {
   );
 
   throwIf(
-    comment.author._id.toString() !==
-      (req.userId.toString ? req.userId.toString() : req.userId),
+    comment.author._id.toString() !== userId,
     new ForbiddenError("You are not authorized to update this comment")
   );
 
@@ -175,100 +216,156 @@ const deleteComment = asyncHandler(async (req, res) => {
 
   throwIf(!commentId, new ValidationError("Comment ID is required"));
 
-  const comment = await Comment.findById(commentId);
-  throwIf(
-    !comment || comment.isSuspended,
-    new NotFoundError("Comment not found")
-  );
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  throwIf(
-    comment.author._id.toString() !==
-      (req.userId.toString ? req.userId.toString() : req.userId),
-    new ForbiddenError("You are not authorized to delete this comment")
-  );
+  try {
+    const comment = await Comment.findById(commentId).session(session);
+    throwIf(
+      !comment || comment.isSuspended,
+      new NotFoundError("Comment not found")
+    );
 
-  const deleteReplies = async (commentId) => {
-    try {
-      const comment = await Comment.findById(commentId).select("replies");
+    throwIf(
+      comment.author._id.toString() !== userId,
+      new ForbiddenError("You are not authorized to delete this comment")
+    );
+
+    const deleteReplies = async (commentId) => {
+      const comment = await Comment.findById(commentId)
+        .select("replies")
+        .session(session);
       if (!comment || !comment.replies.length) return;
 
-      await Promise.all(
-        comment.replies.map(async (replyId) => {
-          await deleteReplies(replyId);
-          await Comment.findByIdAndDelete(replyId);
-          await Like.deleteMany({ comment: replyId });
-          await Post.findByIdAndUpdate(comment.post, {
-            $inc: { commentCount: -1 },
-          });
-        })
+      for (const replyId of comment.replies) {
+        await deleteReplies(replyId);
+        await Comment.findByIdAndDelete(replyId, { session });
+        await Like.deleteMany({ comment: replyId }, { session });
+        await Post.findByIdAndUpdate(
+          comment.post,
+          { $inc: { commentCount: -1 } },
+          { session }
+        );
+      }
+    };
+
+    await deleteReplies(commentId);
+
+    await Like.deleteMany({ comment: commentId }, { session });
+
+    if (!comment.parentComment) {
+      await Post.findByIdAndUpdate(
+        comment.post,
+        {
+          $pull: { comments: commentId },
+          $inc: { commentCount: -1 },
+        },
+        { session }
       );
-    } catch (error) {
-      throw new Error(
-        `Failed to delete replies for comment ${commentId}: ${error.message}`
+    } else {
+      await Comment.findByIdAndUpdate(
+        comment.parentComment,
+        { $pull: { replies: commentId } },
+        { session }
       );
     }
-  };
 
-  await deleteReplies(commentId);
+    await Comment.findByIdAndDelete(commentId, { session });
 
-  await Like.deleteMany({ comment: commentId });
-
-  if (!comment.parentComment) {
-    await Post.findByIdAndUpdate(comment.post, {
-      $pull: { comments: commentId },
-      $inc: { commentCount: -1 },
-    });
+    await session.commitTransaction();
+    return res
+      .status(200)
+      .json(new ApiResponse(200, null, "Comment deleted successfully"));
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
-
-  if (comment.parentComment) {
-    await Comment.findByIdAndUpdate(comment.parentComment, {
-      $pull: { replies: commentId },
-    });
-  }
-
-  await Comment.findByIdAndDelete(commentId);
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, null, "Comment deleted successfully!"));
 });
 
-// Get comments for a post with multi-level nested replies
+// Get comments for a post with multi-level nested replies and pagination
 const getComments = asyncHandler(async (req, res) => {
   const { postId } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+  const userId = req.userId;
 
   const post = await Post.findById(postId);
   throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
-  const comments = await Comment.find({ post: postId, isSuspended: false })
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const comments = await Comment.find({
+    post: postId,
+    isSuspended: false,
+    parentComment: null, // Only top-level comments
+  })
     .populate("author", "userName avatar")
-    .populate("likes")
+    .populate({
+      path: "likes",
+      select: "likedBy",
+    })
     .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit))
     .lean();
 
-  const commentMap = {};
-  const topLevelComments = [];
+  // Recursively fetch replies
+  const fetchReplies = async (comment) => {
+    if (!comment.replies || !comment.replies.length) return [];
 
-  comments.forEach((comment) => {
-    comment.replies = [];
-    comment.likeCount = comment.likes.length;
-    delete comment.likes;
-    commentMap[comment._id.toString()] = comment;
-  });
+    const replies = await Comment.find({
+      _id: { $in: comment.replies },
+      isSuspended: false,
+    })
+      .populate("author", "userName avatar")
+      .populate({
+        path: "likes",
+        select: "likedBy",
+      })
+      .lean();
 
-  comments.forEach((comment) => {
-    if (!comment.parentComment) {
-      topLevelComments.push(comment);
-    } else {
-      const parentId = comment.parentComment.toString();
-      if (commentMap[parentId]) {
-        commentMap[parentId].replies.push(comment);
-      }
+    for (const reply of replies) {
+      reply.replies = await fetchReplies(reply);
+      reply.likeCount = reply.likes.length;
+      reply.isLiked = reply.likes.some(
+        (like) => like.likedBy.toString() === userId
+      );
+      delete reply.likes;
     }
+
+    return replies;
+  };
+
+  // Build comment tree with like status
+  const commentTree = [];
+  for (const comment of comments) {
+    comment.replies = await fetchReplies(comment);
+    comment.likeCount = comment.likes.length;
+    comment.isLiked = comment.likes.some(
+      (like) => like.likedBy.toString() === userId
+    );
+    delete comment.likes;
+    commentTree.push(comment);
+  }
+
+  const totalComments = await Comment.countDocuments({
+    post: postId,
+    isSuspended: false,
+    parentComment: null,
   });
 
   return res.json(
-    new ApiResponse(200, topLevelComments, "Comments fetched successfully")
+    new ApiResponse(
+      200,
+      {
+        comments: commentTree,
+        totalComments,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(totalComments / parseInt(limit)),
+      },
+      "Comments fetched successfully"
+    )
   );
 });
 

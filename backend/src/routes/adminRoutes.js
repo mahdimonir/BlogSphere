@@ -15,15 +15,15 @@ router.use(verifyJWT);
 router.use(authorized(["admin"]));
 
 // User routes
-router.route("/suspend/:userName").patch(toggleUserSuspension);
+router.route("/suspend/user/:userName").patch(toggleUserSuspension);
 router.route("/suspended/users").get(getSuspendedUsers);
 
 // Post routes
-router.route("/suspend/:postId").patch(togglePostSuspension);
+router.route("/suspend/post/:postId").patch(togglePostSuspension);
 router.route("/suspended/posts").get(getSuspendedPosts);
 
 // Comment routes
-router.route("/suspend/:commentId").patch(toggleCommentSuspension);
+router.route("/suspend/comment/:commentId").patch(toggleCommentSuspension);
 router.route("/suspended/comments").get(getSuspendedComments);
 
 export default router;
