@@ -27,11 +27,6 @@ const postSchema = new Schema(
       type: String,
       required: true,
     },
-    contentTable: [
-      {
-        type: String,
-      },
-    ],
     image: {
       type: String, // cloudinary url
     },

@@ -3,6 +3,7 @@ import {
   createPost,
   deletePost,
   getMyPosts,
+  getPendingPosts,
   getPost,
   getPosts,
   updatePost,
@@ -14,6 +15,7 @@ const router = Router();
 // Post routes
 router.route("/").get(getPosts).post(verifyJWT, createPost);
 router.route("/my").get(verifyJWT, getMyPosts);
+router.route("/pending").get(verifyJWT, getPendingPosts);
 router
   .route("/:id")
   .get(getPost)

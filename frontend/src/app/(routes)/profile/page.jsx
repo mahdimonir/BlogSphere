@@ -1,7 +1,8 @@
 "use client";
 
-import ProfileDetails from "@/app/components/ProfileDetails";
+import Loading from "@/app/components/Loading";
 import Sidebar from "@/app/components/Sidebar";
+import UserProfile from "@/app/components/UserProfile";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -17,11 +18,7 @@ export default function Profile() {
   }, [user, loading, router]);
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        Loading...
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!user) return null;
@@ -29,9 +26,11 @@ export default function Profile() {
   return (
     <div className="flex">
       <Sidebar />
-      <div className="ml-64 p-4 w-full">
-        <h1 className="text-2xl font-bold mb-4">Profile</h1>
-        <ProfileDetails user={user} />
+      <div className="p-4 w-full">
+        <h1 className="text-2xl font-bold mb-4 text-gray-950 dark:text-gray-100">
+          Profile
+        </h1>
+        <UserProfile userName={user.userName} />
       </div>
     </div>
   );

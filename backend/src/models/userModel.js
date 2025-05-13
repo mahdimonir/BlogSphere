@@ -13,7 +13,6 @@ const userSchema = new Schema(
     email: {
       type: String,
       required: [true, "Email is required."],
-      unique: true,
       lowercase: true,
       trim: true,
     },
@@ -24,7 +23,6 @@ const userSchema = new Schema(
     },
     userName: {
       type: String,
-      unique: [true, "Username must be unique!"],
       lowercase: true,
       trim: true,
     },
@@ -37,14 +35,14 @@ const userSchema = new Schema(
     },
     following: [
       {
-        type: Schema.Types.ObjectId,
-        ref: "User",
+        _id: { type: Schema.Types.ObjectId, ref: "User" },
+        userName: { type: String, required: true },
       },
     ],
     followers: [
       {
-        type: Schema.Types.ObjectId,
-        ref: "User",
+        _id: { type: Schema.Types.ObjectId, ref: "User" },
+        userName: { type: String, required: true },
       },
     ],
     role: {
@@ -57,18 +55,6 @@ const userSchema = new Schema(
       default: false,
     },
     posts: [{ type: Schema.Types.ObjectId, ref: "Post" }],
-    followers: [
-      {
-        _id: { type: Schema.Types.ObjectId, ref: "User" },
-        userName: { type: String, required: true },
-      },
-    ],
-    following: [
-      {
-        _id: { type: Schema.Types.ObjectId, ref: "User" },
-        userName: { type: String, required: true },
-      },
-    ],
     otp: {
       type: String,
     },
@@ -92,34 +78,25 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-userSchema.index({ userName: 1 });
-userSchema.index({ email: 1 });
-userSchema.index({ following: 1 });
-userSchema.index({ followers: 1 });
-
 userSchema.plugin(mongooseAggregatePaginate);
+
+// Explicitly define unique indexes
+userSchema.index({ userName: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ "followers._id": 1 });
+userSchema.index({ "following._id": 1 });
+
 // Hash password before saving
 userSchema.pre("save", async function (next) {
   try {
-    this.updatedAt = Date.now();
-  } finally {
-    next();
-  }
-  if (!this.isModified("password")) return next();
+    // Skip hashing if the password is not modified
+    if (!this.isModified("password")) return next();
 
-  if (
-    !this.password ||
-    typeof this.password !== "string" ||
-    this.password.trim() === ""
-  ) {
-    throw new Error("Password cannot be empty or undefined");
-  }
-
-  try {
+    // Hash the password
     this.password = await bcrypt.hash(this.password, 10);
     next();
   } catch (error) {
-    next(new Error("Failed to hash password: " + error.message));
+    next(new Error(`Failed to hash password: ${error.message}`));
   }
 });
 

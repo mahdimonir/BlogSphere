@@ -30,6 +30,7 @@ export default function PostCard({
   compact = false,
   onClick,
   onPostDeleted,
+  className = "",
 }) {
   const {
     title = "Untitled Post",
@@ -204,7 +205,6 @@ export default function PostCard({
       });
       const newCommentData = response.data.data;
       setLocalComments((prev) => [
-        ...prev,
         {
           ...newCommentData,
           replies: [],
@@ -213,6 +213,7 @@ export default function PostCard({
           isLiked: false,
           isSuspended: false,
         },
+        ...prev,
       ]);
       setLocalCommentCount((prev) => prev + 1);
       setNewComment("");
@@ -336,12 +337,32 @@ export default function PostCard({
 
     try {
       await axiosInstance.delete(`/comments/${commentId}`);
-      setLocalComments((prev) => prev.filter((c) => c._id !== commentId));
+      setLocalComments((prev) =>
+        prev
+          .filter((c) => c._id !== commentId)
+          .map((comment) => ({
+            ...comment,
+            replies: comment.replies
+              ? updateNestedDelete(comment.replies, commentId)
+              : [],
+          }))
+      );
       setLocalCommentCount((prev) => prev - 1);
       toast.success("Comment deleted successfully");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to delete comment");
     }
+  };
+
+  const updateNestedDelete = (replies, commentId) => {
+    return replies
+      .filter((reply) => reply._id !== commentId)
+      .map((reply) => ({
+        ...reply,
+        replies: reply.replies
+          ? updateNestedDelete(reply.replies, commentId)
+          : [],
+      }));
   };
 
   const updateCommentInTree = (comments, commentId, updatedComment) => {
@@ -372,7 +393,7 @@ export default function PostCard({
 
     setIsDeleting(true);
     try {
-      const response = await axiosInstance.delete(`/posts/${_id}`);
+      await axiosInstance.delete(`/posts/${_id}`);
       toast.success("Post deleted successfully");
       if (onPostDeleted) onPostDeleted(_id);
     } catch (error) {
@@ -382,7 +403,6 @@ export default function PostCard({
         data: error.response?.data,
       });
       toast.error(error.response?.data?.message || "Failed to delete post");
-      if (onPostDeleted) onPostDeleted(_id); // Optimistic update
     } finally {
       setIsDeleting(false);
     }
@@ -396,8 +416,7 @@ export default function PostCard({
         status: newStatus,
       });
       toast.success(`Post status updated to ${newStatus}`);
-      // Update local post status (optional, depends on parent component re-rendering)
-      post.status = newStatus;
+      if (onPostDeleted) onPostDeleted(_id);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update status");
     }
@@ -407,17 +426,13 @@ export default function PostCard({
     e.preventDefault();
     e.stopPropagation();
     try {
-      const response = await axiosInstance.patch(
-        `/admin/suspension/post/${_id}`,
-        {
-          isSuspended: !isSuspended,
-        }
-      );
+      const response = await axiosInstance.patch(`/admin/suspend/post/${_id}`);
       toast.success(
-        `Post ${isSuspended ? "unsuspended" : "suspended"} successfully`
+        `Post ${
+          response.data.data.isSuspended ? "suspended" : "unsuspended"
+        } successfully`
       );
-      // Update local post suspension status
-      post.isSuspended = response.data.data.isSuspended;
+      if (onPostDeleted) onPostDeleted(_id);
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Failed to suspend/unsuspend post"
@@ -428,11 +443,7 @@ export default function PostCard({
   const handleSuspendComment = async (commentId) => {
     try {
       const response = await axiosInstance.patch(
-        `/admin/suspension/comment/${commentId}`,
-        {
-          isSuspended: !localComments.find((c) => c._id === commentId)
-            .isSuspended,
-        }
+        `/admin/suspend/comment/${commentId}`
       );
       setLocalComments((prev) =>
         prev.map((comment) =>
@@ -461,7 +472,6 @@ export default function PostCard({
     }
   };
 
-  // Parse tags if stored as a stringified array
   const parsedTags = typeof tags === "string" ? JSON.parse(tags) : tags;
 
   const renderComments = (comments, depth = 0) => {
@@ -678,7 +688,6 @@ export default function PostCard({
   const isAuthor = user && user._id === author._id;
   const isAdmin = user && user.role === "admin";
 
-  // Strip HTML for plain text preview
   const stripHtml = (html) => {
     if (typeof window === "undefined") return html;
     const tmp = document.createElement("div");
@@ -686,135 +695,74 @@ export default function PostCard({
     return tmp.textContent || tmp.innerText || "";
   };
 
+  const truncatedContent =
+    stripHtml(content).slice(0, 100) +
+    (stripHtml(content).length > 100 ? "..." : "");
+
   return (
     <div
-      className={`rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-lg flex flex-col border border-gray-200 dark:border-gray-700 ${
+      className={`rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-lg flex flex-col border border-gray-200 dark:border-gray-700 ${className} ${
         isSuspended ? "opacity-50" : ""
       }`}
-      style={{ minHeight: compact ? "200px" : "400px" }}
+      style={{ minHeight: compact ? "120px" : "400px" }}
     >
-      <div className="relative">
-        <div
-          style={{
-            height: compact ? "128px" : "200px",
-            overflow: "hidden",
-          }}
-        >
-          <Image
-            src={secureImageUrl}
-            alt={title}
-            width={800}
-            height={600}
-            style={{ width: "100%", height: "100%" }}
-            className="object-cover"
-          />
-        </div>
-        <div className="absolute top-3 left-3">
-          {displayCategories.map((category, index) => (
-            <span
-              key={index}
-              className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-3 rounded-full text-xs font-medium"
-            >
-              {capitalizeFirstLetter(category)}
-            </span>
-          ))}
-        </div>
-        {(isAuthor || isAdmin) && (
-          <div className="absolute top-4 right-4" ref={postDropdownRef}>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDropdownOpen(dropdownOpen === "post" ? null : "post");
-              }}
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
-              aria-label="Post options"
-            >
-              <MoreVertical
-                size={20}
-                className="text-gray-500 dark:text-gray-300"
-              />
-            </button>
-            {dropdownOpen === "post" && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
-                {isAuthor && (
-                  <>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        router.push(`/profile/edit/${_id}`);
-                      }}
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
-                    >
-                      <Edit size={16} className="mr-2" />
-                      Edit Post
-                    </button>
-                    <button
-                      onClick={handleDeletePost}
-                      disabled={isDeleting}
-                      className={`flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left ${
-                        isDeleting ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <Trash2 size={16} className="mr-2" />
-                      Delete Post
-                    </button>
-                    <button
-                      onClick={(e) =>
-                        handleUpdateStatus(
-                          e,
-                          status === "approved" ? "pending" : "approved"
-                        )
-                      }
-                      className={`flex items-center px-4 py-2 text-sm ${
-                        status === "approved"
-                          ? "text-yellow-600 dark:text-yellow-400"
-                          : "text-green-600 dark:text-green-400"
-                      } hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left`}
-                    >
-                      {status === "approved" ? (
-                        <>
-                          <Ban size={16} className="mr-2" />
-                          Set to Pending
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle size={16} className="mr-2" />
-                          Approve
-                        </>
-                      )}
-                    </button>
-                  </>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={handleSuspendPost}
-                    className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
-                  >
-                    <Ban size={16} className="mr-2" />
-                    {isSuspended ? "Unsuspend Post" : "Suspend Post"}
-                  </button>
-                )}
-              </div>
-            )}
+      <Link href={`/posts/${_id}`} onClick={onClick}>
+        <div className="relative">
+          <div
+            style={{
+              height: compact ? "80px" : "200px",
+              overflow: "hidden",
+            }}
+          >
+            <Image
+              src={secureImageUrl}
+              alt={title}
+              width={800}
+              height={600}
+              style={{ width: "100%", height: "100%" }}
+              className="object-cover"
+            />
           </div>
-        )}
-      </div>
-
-      <div className={`p-4 ${compact ? "pb-2" : ""} flex-grow`}>
-        {!compact && createdAt && (
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex justify-between">
-            <span>{formatDate(createdAt)}</span>
-            <span>{calculateReadTime(stripHtml(content))}</span>
+          <div className="absolute top-2 left-2">
+            {displayCategories.map((category, index) => (
+              <span
+                key={index}
+                className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white py-1 px-2 rounded-full text-xs font-medium"
+              >
+                {capitalizeFirstLetter(category)}
+              </span>
+            ))}
           </div>
-        )}
+        </div>
+      </Link>
 
+      <div className={`p-3 ${compact ? "pb-2" : ""} flex-grow`}>
         <Link href={`/posts/${_id}`} onClick={onClick}>
-          <h3 className={`font-bold ${compact ? "text-sm" : "text-lg"} mb-2`}>
+          <h3
+            className={`font-bold ${
+              compact ? "text-sm line-clamp-1" : "text-lg"
+            } mb-1`}
+          >
             {title}
-            {isSuspended && <span className="text-red-500"> (Suspended)</span>}
+            {isSuspended && (
+              <span className="text-red-500 text-xs"> (Suspended)</span>
+            )}
+            {status === "pending" && (
+              <span className="text-yellow-500 text-xs"> (Pending)</span>
+            )}
           </h3>
+          {compact ? (
+            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+              {truncatedContent}
+            </p>
+          ) : (
+            createdAt && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex justify-between">
+                <span>{formatDate(createdAt)}</span>
+                <span>{calculateReadTime(stripHtml(content))}</span>
+              </div>
+            )
+          )}
           {!compact && content && (
             <div
               className="text-gray-600 dark:text-gray-300 text-sm mb-4 prose dark:prose-invert line-clamp-2"
@@ -847,23 +795,23 @@ export default function PostCard({
           </div>
         )}
 
-        {!compact && (
-          <div className="flex items-center justify-between">
-            <Link href={`/users/${author.userName}`}>
-              <div className="flex items-center gap-2">
-                <Image
-                  src={author.avatar || Demo_Image}
-                  alt={author.userName}
-                  width={24}
-                  height={24}
-                  className="rounded-full h-6 w-6 object-cover"
-                />
-                <span className="text-sm hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
-                  {capitalizeFirstLetter(author.userName)}
-                </span>
-              </div>
-            </Link>
+        <div className="flex items-center justify-between">
+          <Link href={`/users/${author.userName}`}>
+            <div className="flex items-center gap-2">
+              <Image
+                src={author.avatar || Demo_Image}
+                alt={author.userName}
+                width={24}
+                height={24}
+                className="rounded-full h-6 w-6 object-cover"
+              />
+              <span className="text-sm hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                {capitalizeFirstLetter(author.userName)}
+              </span>
+            </div>
+          </Link>
 
+          {!compact && (
             <div className="flex items-center gap-4">
               <button
                 onClick={handleLikeToggle}
@@ -873,7 +821,7 @@ export default function PostCard({
                 <HeartIcon
                   size={20}
                   fill={liked ? "red" : "none"}
-                  className={`mr-1  ${
+                  className={`mr-1 ${
                     liked
                       ? "text-red-500 fill-red-500"
                       : "text-gray-700 dark:text-gray-200 hover:fill-red-500 hover:text-red-500"
@@ -881,8 +829,6 @@ export default function PostCard({
                 />
                 {formatNumber(likesState)}
               </button>
-            </div>
-            <div className="flex items-center gap-4">
               <button
                 onClick={() => setShowComments(!showComments)}
                 className="flex items-center text-sm text-gray-700 dark:text-gray-200"
@@ -900,32 +846,113 @@ export default function PostCard({
                 {formatNumber(localCommentCount)}
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {!compact && showComments && (
-        <div className="p-4">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="mb-4">
             <textarea
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Write a comment..."
-              className="flex-1 p-2 text-sm border rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 text-sm border rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={!user || isSuspended}
             />
-            <button
-              onClick={handleAddComment}
-              className="px-3 py-1 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              Post
-            </button>
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={handleAddComment}
+                className="px-4 py-1 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                disabled={!user || !newComment.trim() || isSuspended}
+              >
+                Post Comment
+              </button>
+            </div>
           </div>
           {localComments.length > 0 ? (
             renderComments(localComments)
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
               No comments yet.
             </p>
+          )}
+        </div>
+      )}
+      {(isAuthor || isAdmin) && !compact && (
+        <div className="absolute top-4 right-4" ref={postDropdownRef}>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDropdownOpen(dropdownOpen === "post" ? null : "post");
+            }}
+            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+            aria-label="Post options"
+          >
+            <MoreVertical
+              size={20}
+              className="text-gray-500 dark:text-gray-300"
+            />
+          </button>
+          {dropdownOpen === "post" && (
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+              {isAuthor && (
+                <>
+                  <Link
+                    href={`/posts/edit/${_id}`}
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                  >
+                    <Edit size={16} className="mr-2" />
+                    Edit Post
+                  </Link>
+                  <button
+                    onClick={handleDeletePost}
+                    disabled={isDeleting}
+                    className={`flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left ${
+                      isDeleting ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    <Trash2 size={16} className="mr-2" />
+                    Delete Post
+                  </button>
+                  <button
+                    onClick={(e) =>
+                      handleUpdateStatus(
+                        e,
+                        status === "approved" ? "pending" : "approved"
+                      )
+                    }
+                    className={`flex items-center px-4 py-2 text-sm ${
+                      status === "approved"
+                        ? "text-yellow-600 dark:text-yellow-400"
+                        : "text-green-600 dark:text-green-400"
+                    } hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left`}
+                  >
+                    {status === "approved" ? (
+                      <>
+                        <Ban size={16} className="mr-2" />
+                        Set to Pending
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={16} className="mr-2" />
+                        Approve
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={handleSuspendPost}
+                  className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                >
+                  <Ban size={16} className="mr-2" />
+                  {isSuspended ? "Unsuspend Post" : "Suspend Post"}
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
