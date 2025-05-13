@@ -44,7 +44,7 @@ const commentSchema = new Schema(
 commentSchema.pre(/^find/, function (next) {
   this.populate({
     path: "author",
-    select: "userName",
+    select: "userName avatar",
   });
   next();
 });

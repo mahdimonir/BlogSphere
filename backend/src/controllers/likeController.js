@@ -5,6 +5,7 @@ import { Post } from "../models/postModel.js";
 import { NotFoundError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { createNotification } from "../utils/notificationHelper.js";
 import { throwIf } from "../utils/throwIf.js";
 
 // Utility function to validate and find target (Post or Comment)
@@ -26,7 +27,7 @@ const validateAndFindTarget = async (postId, commentId, userId) => {
     new Error(`Invalid ${isPost ? "postId" : "commentId"}`)
   );
 
-  const target = await Model.findById(targetId);
+  const target = await Model.findById(targetId).populate("author", "userName");
   throwIf(
     !target || target.isSuspended,
     new NotFoundError(isPost ? "Post not found" : "Comment or reply not found")
@@ -55,12 +56,16 @@ const toggleLike = asyncHandler(async (req, res) => {
       $pull: { likes: existingLike._id },
     });
 
+    // Fetch updated like count
+    const updatedTarget = await Model.findById(targetId).lean();
+    const likeCount = updatedTarget.likes.length;
+
     return res
       .status(200)
       .json(
         new ApiResponse(
           200,
-          null,
+          { isLiked: false, likeCount },
           `${isPost ? "Post" : "Comment"} unliked successfully`
         )
       );
@@ -74,8 +79,27 @@ const toggleLike = asyncHandler(async (req, res) => {
 
     await Model.findByIdAndUpdate(targetId, { $push: { likes: like._id } });
 
-    // Fetch the like with populated likedBy (userName and _id are populated by pre hook)
-    const populatedLike = await Like.findById(like._id).lean();
+    // Notify target author if not the liker
+    if (target.author._id.toString() !== userId) {
+      const message = isPost
+        ? `${req.user.userName} liked your post: ${target.title}`
+        : `${req.user.userName} liked your comment`;
+      await createNotification({
+        userId: target.author._id,
+        message,
+        type: "like",
+        link: isPost ? `/posts/${target._id}` : `/posts/${target.post}`,
+      });
+    }
+
+    // Fetch updated like count
+    const updatedTarget = await Model.findById(targetId).lean();
+    const likeCount = updatedTarget.likes.length;
+
+    // Fetch the like with populated likedBy (including userName and avatar)
+    const populatedLike = await Like.findById(like._id)
+      .populate("likedBy", "userName avatar")
+      .lean();
 
     // Transform the response to match desired format
     const responseData = {
@@ -83,7 +107,10 @@ const toggleLike = asyncHandler(async (req, res) => {
       likedBy: {
         _id: populatedLike.likedBy._id,
         userName: populatedLike.likedBy.userName,
+        avatar: populatedLike.likedBy.avatar,
       },
+      isLiked: true,
+      likeCount,
     };
 
     return res

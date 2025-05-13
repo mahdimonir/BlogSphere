@@ -5,9 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon -r dotenv/config src/index.js",
-    "start": "node -r dotenv/config src/index.js",
-    "build": "npm run auth-docs",
-    "auth-docs": "node src/swagger.mjs"
+    "start": "node -r dotenv/config src/index.js"
   },
   "engines": {
     "node": ">=18.0.0"

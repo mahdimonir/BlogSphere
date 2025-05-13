@@ -1,5 +1,6 @@
 "use client";
 
+import GoogleButton from "@/app/assets/google-button/index";
 import { API_URL } from "@/server.js";
 import axios from "axios";
 import { Eye, EyeOff } from "lucide-react";
@@ -8,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
-import GoogleButton from "../../shared/components/google-button/index.jsx";
 
 const Signup = () => {
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -160,10 +160,10 @@ const Signup = () => {
   }, [timer, showOtp, canResend]);
 
   return (
-    <div className="w-full py-10 min-h-[100vh] bg-[#f1f1f1]">
+    <div className="w-full py-10 min-h-[100vh] bg-gray-50 dark:bg-gray-900">
       <div className="w-full flex justify-center">
-        <div className="md:w-[480px] p-8 bg-white shadow rounded-lg">
-          <h3 className="text-3xl font-semibold text-center mb-2">
+        <div className="md:w-[480px] p-8 bg-white dark:bg-gray-800 shadow rounded-lg">
+          <h3 className="text-3xl text-gray-800 dark:text-gray-100 font-semibold text-center mb-2">
             Sign up to BlogSphere
           </h3>
           <p className="text-center text-gray-500 mb-4">
@@ -175,19 +175,21 @@ const Signup = () => {
 
           <GoogleButton />
 
-          <div className="flex items-center my-5 text-gray-400 text-sm">
-            <div className="flex-1 border-t border-gray-300" />
+          <div className="flex items-center my-5 text-gray-400 dark:text-gray-500 text-sm">
+            <div className="flex-1 border-t border-gray-300 dark:border-gray-600" />
             <span className="px-3">or Sign up with Email</span>
-            <div className="flex-1 border-t border-gray-300" />
+            <div className="flex-1 border-t border-gray-300 dark:border-gray-600" />
           </div>
 
           {!showOtp ? (
             <form onSubmit={handleSubmit(onSubmit)}>
-              <label className="block text-gray-700 mb-1">Name</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                Name
+              </label>
               <input
                 type="text"
                 placeholder="John Abraham"
-                className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                 disabled={loading}
                 {...register("name", { required: "Name is required" })}
               />
@@ -195,11 +197,13 @@ const Signup = () => {
                 <p className="text-red-500 text-sm">{errors.name.message}</p>
               )}
 
-              <label className="block text-gray-700 mb-1 mt-3">Email</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-1 mt-3">
+                Email
+              </label>
               <input
                 type="email"
                 placeholder="support@blogsphere.com"
-                className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                 disabled={loading}
                 {...register("email", {
                   required: "Email is required",
@@ -213,12 +217,14 @@ const Signup = () => {
                 <p className="text-red-500 text-sm">{errors.email.message}</p>
               )}
 
-              <label className="block text-gray-700 mb-1 mt-3">Password</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-1 mt-3">
+                Password
+              </label>
               <div className="relative">
                 <input
                   type={passwordVisible ? "text" : "password"}
                   placeholder="Min. 8 characters"
-                  className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                   disabled={loading}
                   {...register("password", {
                     required: "Password is required",
@@ -248,7 +254,7 @@ const Signup = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full text-lg cursor-pointer bg-black text-white mt-4 py-2 rounded-lg"
+                className="w-full text-lg cursor-pointer bg-blue-500 hover:bg-blue-600 text-white mt-4 py-2 rounded-lg"
               >
                 {loading ? "Signing up..." : "Signup"}
               </button>
@@ -259,7 +265,7 @@ const Signup = () => {
             </form>
           ) : (
             <div>
-              <h3 className="text-xl font-semibold text-center mb-4">
+              <h3 className="text-xl text-gray-900 dark:text-gray-100 font-semibold text-center mb-4">
                 Enter OTP
               </h3>
               <div className="flex justify-center gap-4">
@@ -272,7 +278,7 @@ const Signup = () => {
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(index, e)}
                     ref={(el) => (inputRefs.current[index] = el)}
-                    className="w-14 h-14 text-center border border-gray-300 outline-none rounded text-xl"
+                    className="w-14 h-14 text-center border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-none rounded text-xl"
                     onInput={(e) => {
                       if (e.target.value.length > 1)
                         e.target.value = e.target.value.slice(0, 1);
@@ -282,7 +288,7 @@ const Signup = () => {
               </div>
 
               <button
-                className="w-full mt-6 text-lg cursor-pointer bg-black text-white py-2 rounded-lg"
+                className="w-full mt-6 text-lg cursor-pointer bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg"
                 onClick={verifyOtp}
                 disabled={otp.some((d) => d === "") || otpLoading}
               >

@@ -1,14 +1,14 @@
 "use client";
 
-import { API_URL } from "@/server.js";
-import axios from "axios";
+import GoogleButton from "@/app/assets/google-button/index.jsx";
+import axiosInstance from "@/app/utils/axiosConfig";
+import { useAuth } from "@/context/AuthContext";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
-import GoogleButton from "../../shared/components/google-button/index.jsx";
 
 export default function LoginPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -24,8 +24,8 @@ export default function LoginPage() {
   const [timer, setTimer] = useState(60);
   const inputRefs = useRef([]);
   const router = useRouter();
+  const { setUser } = useAuth();
 
-  // Initialize useForm
   const {
     register,
     handleSubmit,
@@ -33,55 +33,63 @@ export default function LoginPage() {
     getValues,
   } = useForm();
 
-  // Initialize rememberMe and log initial state
   useEffect(() => {
     if (typeof window !== "undefined" && window.localStorage) {
       const storedRememberMe = localStorage.getItem("rememberMe") === "true";
-      console.log("Initial rememberMe from localStorage:", storedRememberMe);
       setRememberMe(storedRememberMe);
     }
   }, []);
 
-  // Handle rememberMe checkbox change
   const handleRememberMeChange = () => {
     const newValue = !rememberMe;
     setRememberMe(newValue);
-    console.log("rememberMe toggled to:", newValue);
     if (typeof window !== "undefined" && window.localStorage) {
       localStorage.setItem("rememberMe", newValue.toString());
       if (!newValue) {
         localStorage.removeItem("user");
+        localStorage.removeItem("token");
       }
     }
   };
 
-  // Login
-  const onLogin = async ({ email, password }) => {
+  const isEmail = (input) => {
+    // Basic email regex: checks for @ and domain
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+  };
+
+  const onLogin = async ({ credential, password }) => {
     try {
       setServerError("");
       setLoading(true);
 
-      console.log("Login request payload:", { email, password, rememberMe });
+      // Determine if credential is email or username
+      const payload = {
+        [isEmail(credential) ? "email" : "userName"]: credential,
+        password,
+        rememberMe,
+      };
 
-      if (!password || typeof password !== "string" || password.trim() === "") {
-        throw new Error("Password is required and must be a non-empty string");
-      }
-
-      const res = await axios.post(
-        `${API_URL}/auth/login`,
-        { email, password, rememberMe },
-        { withCredentials: true }
-      );
+      const res = await axiosInstance.post("/auth/login", payload, {
+        withCredentials: true,
+      });
 
       if (res.status === 200 && res.data.success) {
+        const userData = res.data.data.user;
+        const token = res.data.data.accessToken;
+
         if (typeof window !== "undefined" && window.localStorage) {
           localStorage.setItem("rememberMe", rememberMe.toString());
           if (rememberMe) {
-            localStorage.setItem("user", JSON.stringify(res.data.data.user));
+            localStorage.setItem("user", JSON.stringify(userData));
+            localStorage.setItem("token", token);
           } else {
             localStorage.removeItem("user");
+            localStorage.removeItem("token");
           }
         }
+
+        setUser(userData);
+
         toast.success(res.data.message || "Login successful!");
         router.push("/");
       } else {
@@ -89,7 +97,9 @@ export default function LoginPage() {
       }
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message || err.message || "Something went wrong";
+        err.response?.data?.message ||
+        err.message ||
+        "Invalid email/username or password";
       setServerError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -97,14 +107,13 @@ export default function LoginPage() {
     }
   };
 
-  // Request OTP for Forgot Password
   const onRequestOtp = async ({ email }) => {
     try {
       setServerError("");
       setLoading(true);
 
-      const res = await axios.post(
-        `${API_URL}/auth/forget-password`,
+      const res = await axiosInstance.post(
+        "/auth/forget-password",
         { email },
         { withCredentials: true }
       );
@@ -120,7 +129,7 @@ export default function LoginPage() {
       }
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message || err.message || "Something went wrong";
+        err.response?.data?.message || err.message || "Failed to send OTP";
       setServerError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -128,7 +137,6 @@ export default function LoginPage() {
     }
   };
 
-  // Reset Password
   const onResetPassword = async ({ password, confirmPassword }) => {
     try {
       setServerError("");
@@ -142,8 +150,8 @@ export default function LoginPage() {
         throw new Error("Email not found. Please start over.");
       }
 
-      const res = await axios.post(
-        `${API_URL}/auth/reset-password`,
+      const res = await axiosInstance.post(
+        "/auth/reset-password",
         { email: userEmail, otp: enteredOtp, password },
         { withCredentials: true }
       );
@@ -168,7 +176,6 @@ export default function LoginPage() {
     }
   };
 
-  // Resend OTP
   const resendOtp = async () => {
     try {
       setServerError("");
@@ -176,8 +183,8 @@ export default function LoginPage() {
       setCanResend(false);
       setTimer(60);
 
-      const res = await axios.post(
-        `${API_URL}/auth/forget-password`,
+      const res = await axiosInstance.post(
+        "/auth/forget-password",
         { email: userEmail },
         { withCredentials: true }
       );
@@ -197,7 +204,6 @@ export default function LoginPage() {
     }
   };
 
-  // OTP Input Handling
   const handleOtpChange = (index, value) => {
     if (!/^[0-9]?$/.test(value)) return;
 
@@ -216,7 +222,6 @@ export default function LoginPage() {
     }
   };
 
-  // Timer for Resend OTP
   useEffect(() => {
     let timeout;
     if (showOtpForm && timer > 0 && !canResend) {
@@ -229,39 +234,29 @@ export default function LoginPage() {
     return () => clearTimeout(timeout);
   }, [timer, showOtpForm, canResend]);
 
-  // Check if already authenticated
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        let res;
-        try {
-          res = await axios.get(`${API_URL}/users/profile/me`, {
-            withCredentials: true,
-          });
-        } catch {
-          res = await axios.get(`${API_URL}/admins/profile/me`, {
-            withCredentials: true,
-          });
-        }
-
+        const res = await axiosInstance.get("/users/profile/me");
         if (res.status === 200) {
           router.push("/");
         }
       } catch {
-        // Both user and admin failed - not authenticated
+        // Not authenticated, no action needed
       }
     };
+
     checkAuth();
   }, [router]);
 
   return (
-    <div className="w-full py-10 min-h-[100vh] bg-[#f1f1f1]">
+    <div className="w-full py-10 min-h-[100vh] bg-gray-50 dark:bg-gray-900 transition-colors">
       <div className="w-full flex justify-center">
-        <div className="md:w-[480px] p-8 bg-white shadow rounded-lg">
-          <h3 className="text-3xl font-semibold text-center mb-2">
+        <div className="md:w-[480px] p-8 bg-white dark:bg-gray-800 shadow rounded-lg">
+          <h3 className="text-3xl font-semibold text-center mb-2 text-gray-800 dark:text-gray-100">
             {showForgotPassword ? "Reset Your Password" : "Login to BlogSphere"}
           </h3>
-          <p className="text-center text-gray-500 mb-4">
+          <p className="text-center text-gray-500 dark:text-gray-400 mb-4">
             {showForgotPassword ? (
               <>
                 Remember your password?{" "}
@@ -290,40 +285,40 @@ export default function LoginPage() {
             <>
               <GoogleButton />
 
-              <div className="flex items-center my-5 text-gray-400 text-sm">
-                <div className="flex-1 border-t border-gray-300" />
-                <span className="px-3">or Sign in with Email</span>
-                <div className="flex-1 border-t border-gray-300" />
+              <div className="flex items-center my-5 text-gray-400 dark:text-gray-500 text-sm">
+                <div className="flex-1 border-t border-gray-300 dark:border-gray-600" />
+                <span className="px-3">or Sign in with Email or Username</span>
+                <div className="flex-1 border-t border-gray-300 dark:border-gray-600" />
               </div>
 
               <form onSubmit={handleSubmit(onLogin)}>
-                <label className="block text-gray-700 mb-1">Email</label>
+                <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                  Email or Username
+                </label>
                 <input
-                  type="email"
-                  placeholder="support@blogsphere.com"
-                  className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                  type="text"
+                  placeholder="Enter email or username"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                   disabled={loading}
-                  aria-label="Email address"
-                  {...register("email", {
-                    required: "Email is required",
-                    pattern: {
-                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      message: "Invalid email address",
-                    },
+                  aria-label="Email or username"
+                  {...register("credential", {
+                    required: "Email or username is required",
                   })}
                 />
-                {errors.email && (
-                  <p className="text-red-500 text-sm">{errors.email.message}</p>
+                {errors.credential && (
+                  <p className="text-red-500 text-sm">
+                    {errors.credential.message}
+                  </p>
                 )}
 
-                <label className="block text-gray-700 mb-1 mt-4">
+                <label className="block text-gray-700 dark:text-gray-300 mb-1 mt-4">
                   Password
                 </label>
                 <div className="relative">
                   <input
                     type={passwordVisible ? "text" : "password"}
                     placeholder="Min. 8 characters"
-                    className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                     disabled={loading}
                     aria-label="Password"
                     {...register("password", {
@@ -337,7 +332,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setPasswordVisible(!passwordVisible)}
-                    className="absolute inset-y-0 right-3 flex items-center text-gray-400"
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-400 dark:text-gray-500"
                     aria-label={
                       passwordVisible ? "Hide password" : "Show password"
                     }
@@ -352,7 +347,7 @@ export default function LoginPage() {
                 )}
 
                 <div className="flex justify-between items-center my-4">
-                  <label className="text-gray-700">
+                  <label className="text-gray-700 dark:text-gray-300">
                     <input
                       type="checkbox"
                       className="mr-2"
@@ -377,7 +372,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full text-lg cursor-pointer bg-black text-white py-2 rounded-lg disabled:opacity-50"
+                  className="w-full text-lg cursor-pointer bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg disabled:opacity-50"
                 >
                   {loading ? "Logging in..." : "Login"}
                 </button>
@@ -389,11 +384,13 @@ export default function LoginPage() {
             </>
           ) : !showOtpForm ? (
             <form onSubmit={handleSubmit(onRequestOtp)}>
-              <label className="block text-gray-700 mb-1">Email</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                Email
+              </label>
               <input
                 type="email"
                 placeholder="support@blogsphere.com"
-                className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                 disabled={loading}
                 aria-label="Email address"
                 {...register("email", {
@@ -411,7 +408,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full text-lg cursor-pointer bg-black text-white mt-4 py-2 rounded-lg disabled:opacity-50"
+                className="w-full text-lg cursor-pointer bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg disabled:opacity-50"
               >
                 {loading ? "Sending OTP..." : "Send OTP"}
               </button>
@@ -422,7 +419,7 @@ export default function LoginPage() {
             </form>
           ) : (
             <form onSubmit={handleSubmit(onResetPassword)}>
-              <h3 className="text-xl font-semibold text-center mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-4">
                 Enter 4-Digit OTP and New Password
               </h3>
 
@@ -436,7 +433,7 @@ export default function LoginPage() {
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(index, e)}
                     ref={(el) => (inputRefs.current[index] = el)}
-                    className="w-14 h-14 text-center border border-gray-300 outline-none rounded text-xl"
+                    className="w-14 h-14 text-center border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-none rounded text-xl"
                     disabled={otpLoading}
                     aria-label={`OTP digit ${index + 1}`}
                     onInput={(e) => {
@@ -447,12 +444,14 @@ export default function LoginPage() {
                 ))}
               </div>
 
-              <label className="block text-gray-700 mb-1">New Password</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                New Password
+              </label>
               <div className="relative">
                 <input
                   type={passwordVisible ? "text" : "password"}
                   placeholder="Min. 8 characters"
-                  className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                   disabled={otpLoading}
                   aria-label="New password"
                   {...register("password", {
@@ -480,14 +479,14 @@ export default function LoginPage() {
                 </p>
               )}
 
-              <label className="block text-gray-700 mb-1 mt-4">
+              <label className="block text-gray-700 dark:text-gray-300 mb-1 mt-4">
                 Confirm Password
               </label>
               <div className="relative">
                 <input
                   type={passwordVisible ? "text" : "password"}
                   placeholder="Confirm your password"
-                  className="w-full p-2 border border-gray-300 outline-0 mb-1"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-0 mb-1"
                   disabled={otpLoading}
                   aria-label="Confirm new password"
                   {...register("confirmPassword", {
@@ -517,14 +516,14 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={otp.some((d) => d === "") || otpLoading}
-                className="w-full text-lg cursor-pointer bg-black text-white mt-4 py-2 rounded-lg disabled:opacity-50"
+                className="w-full text-lg cursor-pointer bg-blue-500 hover:bg-blue-600 text-white mt-4 py-2 rounded-lg disabled:opacity-50"
               >
                 {otpLoading ? "Resetting Password..." : "Reset Password"}
               </button>
 
               <div className="text-center text-sm mt-4">
                 <button
-                  className="text-blue-500 cursor-pointer disabled:opacity-50"
+                  className="text-blue-600 cursor-pointer disabled:opacity-50"
                   disabled={!canResend || loading}
                   onClick={resendOtp}
                 >

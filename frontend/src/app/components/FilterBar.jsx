@@ -1,52 +1,75 @@
-import { useState } from "react";
-import CategoryButton from "./CategoryButton";
+"use client";
 
 export default function FilterBar({
-    activeCategory = "All",
-    sortBy = "Newest",
+  activeCategory,
+  setActiveCategory,
+  sortBy,
+  setSortBy,
 }) {
-    const categories = [
-        "All",
-        "Adventure",
-        "Food",
-        "Technologies",
-        "Travel",
-        "Art",
-    ];
-    const sortOptions = ["Newest", "Popular", "Trending"];
+  const categories = [
+    "All",
+    "Adventure",
+    "Food",
+    "Technologies",
+    "Travel",
+    "Art",
+    "Trending",
+  ];
 
-    const [selectedSort, setSelectedSort] = useState(sortBy);
+  const sortOptions = ["Newest", "Oldest", "Most Liked", "Most Commented"];
 
-    return (
-        <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">Popular blogs</h2>
+  return (
+    <div className="flex flex-col lg:flex-row justify-between mb-6 gap-4">
+      {/* Category Filters */}
+      <div className="w-full sm:w-auto">
+        {/* Dropdown for small screens */}
+        <select
+          value={activeCategory}
+          onChange={(e) => setActiveCategory(e.target.value)}
+          className="block sm:hidden w-full px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+        >
+          {categories.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
 
-            <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                    {categories.map((category) => (
-                        <CategoryButton
-                            key={category}
-                            category={category}
-                            active={category === activeCategory}
-                        />
-                    ))}
-                </div>
-
-                <div className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-500">Sort by:</span>
-                    <select
-                        value={selectedSort}
-                        onChange={(e) => setSelectedSort(e.target.value)}
-                        className="bg-transparent font-medium cursor-pointer"
-                    >
-                        {sortOptions.map((option) => (
-                            <option key={option} value={option}>
-                                {option}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            </div>
+        {/* Buttons for larger screens */}
+        <div className="hidden sm:flex gap-4">
+          {categories.map((category) => (
+            <button
+              key={category}
+              className={`px-4 py-2 rounded-full ${
+                activeCategory === category
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              onClick={() => setActiveCategory(category)}
+            >
+              {category}
+            </button>
+          ))}
         </div>
-    );
+      </div>
+
+      {/* Sort Options */}
+      <div className="flex items-center gap-2 w-full sm:w-auto">
+        <span className="text-sm text-gray-600 dark:text-gray-300">
+          Sort By:
+        </span>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="w-full sm:w-auto px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+        >
+          {sortOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
 }

@@ -21,8 +21,7 @@ const postSchema = new Schema(
     status: {
       type: String,
       enum: ["pending", "approved"],
-      // default: "pending",
-      default: "approved",
+      default: "pending",
     },
     content: {
       type: String,
@@ -64,7 +63,7 @@ const postSchema = new Schema(
 postSchema.pre(/^find/, function (next) {
   this.populate({
     path: "author",
-    select: "userName",
+    select: "userName avatar",
   });
   next();
 });

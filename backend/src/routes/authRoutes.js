@@ -1,4 +1,3 @@
-// routes/auth.routes.js
 import { Router } from "express";
 import {
   deleteUser,
@@ -17,15 +16,19 @@ import { verifyJWT } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
+// Public routes
 router.route("/signup").post(signup);
 router.route("/verify").post(verifyAccount);
 router.route("/resend-otp").post(resendOtp);
 router.route("/login").post(login);
-router.route("/logout").post(verifyJWT, logout);
-router.route("/refresh-token").post(refreshAccessToken);
 router.route("/forget-password").post(forgetPassword);
 router.route("/reset-password").post(resetPassword);
-router.route("/update").put(isAuthenticated, updateUser);
-router.route("/delece").delete(isAuthenticated, deleteUser);
+router.route("/refresh-token").post(refreshAccessToken);
+
+// Protected routes
+router.route("/logout").post(verifyJWT, logout);
+router.route("/update").patch(verifyJWT, updateUserInfo);
+router.route("/avatar").patch(verifyJWT, updateUserAvatar);
+router.route("/delete").delete(verifyJWT, deleteUser);
 
 export default router;

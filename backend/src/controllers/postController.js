@@ -13,6 +13,7 @@ import {
   deleteFileFromCloudinary,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
+import { createNotification } from "../utils/notificationHelper.js";
 import { throwIf } from "../utils/throwIf.js";
 
 // Create a new post
@@ -54,7 +55,20 @@ const createPost = asyncHandler(async (req, res) => {
     author: req.userId,
   });
   await post.save();
-  await post.populate("author", "userName");
+  await post.populate("author", "userName avatar");
+
+  // Notify followers (example)
+  const followers = await mongoose
+    .model("User")
+    .find({ following: req.userId });
+  for (const follower of followers) {
+    await createNotification({
+      userId: follower._id,
+      message: `${post.author.userName} created a new post: ${title}`,
+      type: "post",
+      link: `/posts/${post._id}`,
+    });
+  }
 
   return res
     .status(201)
@@ -77,7 +91,7 @@ const updatePost = asyncHandler(async (req, res) => {
   const imageFile = req.files?.image?.[0];
   if (imageFile) {
     if (post.image) {
-      const deleteResult = await deleteFileFromCloudinary(post.image);
+      await deleteFileFromCloudinary(post.image);
     }
     const image = await uploadOnCloudinary(imageFile.path);
     throwIf(!image?.url, new ValidationError("Image upload failed"));
@@ -110,29 +124,29 @@ const updatePost = asyncHandler(async (req, res) => {
 // Delete a post and associated comments/likes
 const deletePost = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const inActivePost = await Post.findOneAndUpdate(
-    { _id: id },
-    { $set: { isSuspended: true } },
-    { new: true }
-  );
+  console.log("Attempting to delete post with ID:", id);
+
+  const post = await Post.findById(id);
+  throwIf(!post, new NotFoundError("Post not found"));
   throwIf(
-    !inActivePost || inActivePost.isSuspended,
-    new NotFoundError("Post not found")
-  );
-  throwIf(
-    inActivePost.author._id.toString() !==
+    post.author._id.toString() !==
       (req.userId.toString ? req.userId.toString() : req.userId),
     new ForbiddenError("Unauthorized")
   );
 
-  if (inActivePost.image) {
-    const deleteResult = await deleteFileFromCloudinary(inActivePost.image);
+  if (post.image) {
+    console.log("Deleting image from Cloudinary:", post.image);
+    await deleteFileFromCloudinary(post.image);
   }
 
+  console.log("Deleting comments for post:", id);
   await Comment.deleteMany({ post: id });
+  console.log("Deleting likes for post:", id);
   await Like.deleteMany({ post: id });
+  console.log("Deleting post from database:", id);
   await Post.findByIdAndDelete(id);
 
+  console.log("Post deleted successfully:", id);
   return res
     .status(200)
     .json(new ApiResponse(200, null, "Post deleted successfully"));
@@ -141,8 +155,8 @@ const deletePost = asyncHandler(async (req, res) => {
 // Get paginated posts with comments and likes
 const getPosts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, search } = req.query;
+  const userId = req.userId; // From authentication middleware
 
-  // Fetch posts with basic details
   const matchStage = search
     ? { title: { $regex: search, $options: "i" }, isSuspended: false }
     : { isSuspended: false };
@@ -219,29 +233,48 @@ const getPosts = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          avatar: "$$user.avatar",
                         },
                       },
                     },
                   },
                 },
               },
+              isLiked: userId
+                ? {
+                    $anyElementTrue: {
+                      $map: {
+                        input: "$likes",
+                        as: "like",
+                        in: {
+                          $eq: [
+                            "$$like.likedBy._id",
+                            new mongoose.Types.ObjectId(userId),
+                          ],
+                        },
+                      },
+                    },
+                  }
+                : false,
             },
           },
           {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.avatar": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
               replies: 1,
               likeCount: { $size: "$likes" },
               likes: 1,
+              isSuspended: 1,
             },
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -286,12 +319,29 @@ const getPosts = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    avatar: "$$user.avatar",
                   },
                 },
               },
             },
           },
         },
+        isLiked: userId
+          ? {
+              $anyElementTrue: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    $eq: [
+                      "$$like.likedBy._id",
+                      new mongoose.Types.ObjectId(userId),
+                    ],
+                  },
+                },
+              },
+            }
+          : false,
       },
     },
     {
@@ -301,19 +351,23 @@ const getPosts = asyncHandler(async (req, res) => {
         image: 1,
         catagory: 1,
         tags: 1,
+        contentTable: 1,
         status: 1,
         createdAt: 1,
+        isSuspended: 1,
         "author.userName": 1,
+        "author.avatar": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
         comments: 1,
         likes: 1,
+        isLiked: 1,
       },
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -331,13 +385,11 @@ const getPosts = asyncHandler(async (req, res) => {
     const commentMap = {};
     const topLevelComments = [];
 
-    // Initialize comments with empty replies array
     post.comments.forEach((comment) => {
-      comment.replies = []; // Ensure replies is an array
+      comment.replies = [];
       commentMap[comment._id.toString()] = comment;
     });
 
-    // Build the tree
     post.comments.forEach((comment) => {
       if (!comment.parentComment) {
         topLevelComments.push(comment);
@@ -349,7 +401,6 @@ const getPosts = asyncHandler(async (req, res) => {
       }
     });
 
-    // Update post comments to only include top-level comments
     post.comments = topLevelComments;
     return post;
   });
@@ -371,6 +422,7 @@ const getPosts = asyncHandler(async (req, res) => {
 // Get user's own posts
 const getMyPosts = asyncHandler(async (req, res) => {
   const { search } = req.query;
+  const userId = req.userId;
 
   const matchStage = search
     ? {
@@ -455,29 +507,48 @@ const getMyPosts = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          avatar: "$$user.avatar",
                         },
                       },
                     },
                   },
                 },
               },
+              isLiked: userId
+                ? {
+                    $anyElementTrue: {
+                      $map: {
+                        input: "$likes",
+                        as: "like",
+                        in: {
+                          $eq: [
+                            "$$like.likedBy._id",
+                            new mongoose.Types.ObjectId(userId),
+                          ],
+                        },
+                      },
+                    },
+                  }
+                : false,
             },
           },
           {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.avatar": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
               replies: 1,
               likeCount: { $size: "$likes" },
               likes: 1,
+              isSuspended: 1,
             },
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -522,12 +593,29 @@ const getMyPosts = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    avatar: "$$user.avatar",
                   },
                 },
               },
             },
           },
         },
+        isLiked: userId
+          ? {
+              $anyElementTrue: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    $eq: [
+                      "$$like.likedBy._id",
+                      new mongoose.Types.ObjectId(userId),
+                    ],
+                  },
+                },
+              },
+            }
+          : false,
       },
     },
     {
@@ -537,19 +625,23 @@ const getMyPosts = asyncHandler(async (req, res) => {
         image: 1,
         catagory: 1,
         tags: 1,
+        contentTable: 1,
         status: 1,
         createdAt: 1,
+        isSuspended: 1,
         "author.userName": 1,
+        "author.avatar": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
         comments: 1,
         likes: 1,
+        isLiked: 1,
       },
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -561,7 +653,7 @@ const getMyPosts = asyncHandler(async (req, res) => {
     const topLevelComments = [];
 
     post.comments.forEach((comment) => {
-      comment.replies = []; // Ensure replies is an array
+      comment.replies = [];
       commentMap[comment._id.toString()] = comment;
     });
 
@@ -587,6 +679,8 @@ const getMyPosts = asyncHandler(async (req, res) => {
 // Get a single post by ID
 const getPost = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const userId = req.userId;
+
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new NotFoundError("Invalid post ID");
   }
@@ -663,29 +757,48 @@ const getPost = asyncHandler(async (req, res) => {
                         in: {
                           _id: "$$user._id",
                           userName: "$$user.userName",
+                          avatar: "$$user.avatar",
                         },
                       },
                     },
                   },
                 },
               },
+              isLiked: userId
+                ? {
+                    $anyElementTrue: {
+                      $map: {
+                        input: "$likes",
+                        as: "like",
+                        in: {
+                          $eq: [
+                            "$$like.likedBy._id",
+                            new mongoose.Types.ObjectId(userId),
+                          ],
+                        },
+                      },
+                    },
+                  }
+                : false,
             },
           },
           {
             $project: {
               content: 1,
               "author.userName": 1,
+              "author.avatar": 1,
               "author._id": 1,
               createdAt: 1,
               parentComment: 1,
               replies: 1,
               likeCount: { $size: "$likes" },
               likes: 1,
+              isSuspended: 1,
             },
           },
           {
             $project: {
-              likeUsers: 0, // Exclude likeUsers in a separate stage
+              likeUsers: 0,
             },
           },
         ],
@@ -730,12 +843,29 @@ const getPost = asyncHandler(async (req, res) => {
                   in: {
                     _id: "$$user._id",
                     userName: "$$user.userName",
+                    avatar: "$$user.avatar",
                   },
                 },
               },
             },
           },
         },
+        isLiked: userId
+          ? {
+              $anyElementTrue: {
+                $map: {
+                  input: "$likes",
+                  as: "like",
+                  in: {
+                    $eq: [
+                      "$$like.likedBy._id",
+                      new mongoose.Types.ObjectId(userId),
+                    ],
+                  },
+                },
+              },
+            }
+          : false,
       },
     },
     {
@@ -745,19 +875,23 @@ const getPost = asyncHandler(async (req, res) => {
         image: 1,
         catagory: 1,
         tags: 1,
+        contentTable: 1,
         status: 1,
         createdAt: 1,
+        isSuspended: 1,
         "author.userName": 1,
+        "author.avatar": 1,
         "author._id": 1,
         likeCount: { $size: "$likes" },
         commentCount: { $size: "$comments" },
         comments: 1,
         likes: 1,
+        isLiked: 1,
       },
     },
     {
       $project: {
-        likeUsers: 0, // Exclude likeUsers in a separate stage
+        likeUsers: 0,
       },
     },
   ]);
@@ -767,18 +901,15 @@ const getPost = asyncHandler(async (req, res) => {
     throw new NotFoundError("Post not found");
   }
 
-  // Build comment tree for the post
   const post = result[0];
   const commentMap = {};
   const topLevelComments = [];
 
-  // Initialize comments with empty replies array
   post.comments.forEach((comment) => {
-    comment.replies = []; // Ensure replies is an array
+    comment.replies = [];
     commentMap[comment._id.toString()] = comment;
   });
 
-  // Build the tree
   post.comments.forEach((comment) => {
     if (!comment.parentComment) {
       topLevelComments.push(comment);
@@ -790,7 +921,6 @@ const getPost = asyncHandler(async (req, res) => {
     }
   });
 
-  // Update post comments to only include top-level comments
   post.comments = topLevelComments;
 
   return res

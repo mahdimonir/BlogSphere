@@ -8,40 +8,64 @@ import {
 } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { createNotification } from "../utils/notificationHelper.js";
 import { throwIf } from "../utils/throwIf.js";
+
+// Utility function for shared comment creation logic
+const createCommentDocument = async ({
+  content,
+  postId,
+  authorId,
+  parentCommentId,
+}) => {
+  throwIf(
+    !content || content.trim() === "",
+    new ValidationError("Content is required")
+  );
+
+  const comment = new Comment({
+    content: content.trim(),
+    post: postId,
+    author: authorId,
+    parentComment: parentCommentId || null,
+  });
+  await comment.save();
+
+  await comment.populate({ path: "author", select: "userName avatar" });
+
+  return comment;
+};
 
 // Create a top-level comment
 const createComment = asyncHandler(async (req, res) => {
   const { postId, content } = req.body;
   const userId = req.userId;
 
-  // Validate input
   throwIf(!postId, new ValidationError("Post ID is required"));
-  throwIf(
-    !content || content.trim() === "",
-    new ValidationError("Content is required")
-  );
 
-  // Validate post existence
-  const post = await Post.findById(postId);
+  const post = await Post.findById(postId).populate("author", "userName");
   throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
-  // Create the comment
-  const comment = new Comment({
-    content: content.trim(),
-    post: postId,
-    author: userId,
-    parentComment: null,
+  const comment = await createCommentDocument({
+    content,
+    postId,
+    authorId: userId,
   });
-  await comment.save();
 
-  // Add to post's comments array
   await Post.findByIdAndUpdate(postId, {
     $push: { comments: comment._id },
+    $inc: { commentCount: 1 },
   });
 
-  // Populate author
-  await comment.populate({ path: "author", select: "userName" });
+  // Notify post author if not the commenter
+  if (post.author._id.toString() !== userId) {
+    await createNotification({
+      userId: post.author._id,
+      message: `${req.user.userName} commented on your post: ${post.title}`,
+      type: "comment",
+      link: `/posts/${post._id}`,
+    });
+  }
 
   return res
     .status(201)
@@ -53,29 +77,24 @@ const createNestedComment = asyncHandler(async (req, res) => {
   const { parentCommentId, content } = req.body;
   const userId = req.userId;
 
-  // Validate input
   throwIf(
     !parentCommentId,
     new ValidationError("Parent comment ID is required")
   );
-  throwIf(
-    !content || content.trim() === "",
-    new ValidationError("Content is required")
-  );
 
-  // Validate parent comment existence
-  const parentComment = await Comment.findById(parentCommentId);
+  const parentComment = await Comment.findById(parentCommentId).populate(
+    "author",
+    "userName"
+  );
   throwIf(
     !parentComment || parentComment.isSuspended,
     new NotFoundError("Parent comment not found")
   );
 
-  // Validate post existence
   const postId = parentComment.post;
-  const post = await Post.findById(postId);
+  const post = await Post.findById(postId).populate("author", "userName");
   throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
-  // Optional: Limit nesting depth (e.g., max 5 levels)
   let depth = 0;
   let current = parentComment;
   while (current && current.parentComment) {
@@ -86,22 +105,30 @@ const createNestedComment = asyncHandler(async (req, res) => {
     current = await Comment.findById(current.parentComment);
   }
 
-  // Create the reply
-  const comment = new Comment({
-    content: content.trim(),
-    post: postId,
-    author: userId,
-    parentComment: parentCommentId,
+  const comment = await createCommentDocument({
+    content,
+    postId,
+    authorId: userId,
+    parentCommentId,
   });
-  await comment.save();
 
-  // Add to parent's replies array
   await Comment.findByIdAndUpdate(parentCommentId, {
     $push: { replies: comment._id },
   });
 
-  // Populate author
-  await comment.populate({ path: "author", select: "userName" });
+  await Post.findByIdAndUpdate(postId, {
+    $inc: { commentCount: 1 },
+  });
+
+  // Notify parent comment author if not the replier
+  if (parentComment.author._id.toString() !== userId) {
+    await createNotification({
+      userId: parentComment.author._id,
+      message: `${req.user.userName} replied to your comment on: ${post.title}`,
+      type: "comment",
+      link: `/posts/${post._id}`,
+    });
+  }
 
   return res
     .status(201)
@@ -113,33 +140,28 @@ const updateComment = asyncHandler(async (req, res) => {
   const { commentId, content } = req.body;
   const userId = req.userId;
 
-  // Validate input
   throwIf(!commentId, new ValidationError("Comment ID is required"));
   throwIf(
     !content || content.trim() === "",
     new ValidationError("Content is required")
   );
 
-  // Validate comment existence
   const comment = await Comment.findById(commentId);
   throwIf(
     !comment || comment.isSuspended,
     new NotFoundError("Comment not found")
   );
 
-  // Check authorization
   throwIf(
     comment.author._id.toString() !==
       (req.userId.toString ? req.userId.toString() : req.userId),
     new ForbiddenError("You are not authorized to update this comment")
   );
 
-  // Update the comment
   comment.content = content.trim();
   await comment.save();
 
-  // Populate author
-  await comment.populate({ path: "author", select: "userName" });
+  await comment.populate({ path: "author", select: "userName avatar" });
 
   return res
     .status(200)
@@ -151,24 +173,20 @@ const deleteComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
   const userId = req.userId;
 
-  // Validate input
   throwIf(!commentId, new ValidationError("Comment ID is required"));
 
-  // Validate comment existence
   const comment = await Comment.findById(commentId);
   throwIf(
     !comment || comment.isSuspended,
     new NotFoundError("Comment not found")
   );
 
-  // Check authorization
   throwIf(
     comment.author._id.toString() !==
       (req.userId.toString ? req.userId.toString() : req.userId),
     new ForbiddenError("You are not authorized to delete this comment")
   );
 
-  // Recursively delete replies
   const deleteReplies = async (commentId) => {
     try {
       const comment = await Comment.findById(commentId).select("replies");
@@ -179,6 +197,9 @@ const deleteComment = asyncHandler(async (req, res) => {
           await deleteReplies(replyId);
           await Comment.findByIdAndDelete(replyId);
           await Like.deleteMany({ comment: replyId });
+          await Post.findByIdAndUpdate(comment.post, {
+            $inc: { commentCount: -1 },
+          });
         })
       );
     } catch (error) {
@@ -188,27 +209,23 @@ const deleteComment = asyncHandler(async (req, res) => {
     }
   };
 
-  // Delete replies
   await deleteReplies(commentId);
 
-  // Delete associated likes
   await Like.deleteMany({ comment: commentId });
 
-  // Remove from post's comments array (if top-level)
   if (!comment.parentComment) {
     await Post.findByIdAndUpdate(comment.post, {
       $pull: { comments: commentId },
+      $inc: { commentCount: -1 },
     });
   }
 
-  // Remove from parent's replies array (if a reply)
   if (comment.parentComment) {
     await Comment.findByIdAndUpdate(comment.parentComment, {
       $pull: { replies: commentId },
     });
   }
 
-  // Delete the comment itself
   await Comment.findByIdAndDelete(commentId);
 
   return res
@@ -220,30 +237,25 @@ const deleteComment = asyncHandler(async (req, res) => {
 const getComments = asyncHandler(async (req, res) => {
   const { postId } = req.params;
 
-  // Validate post existence
   const post = await Post.findById(postId);
   throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
 
-  // Fetch all comments for the post
   const comments = await Comment.find({ post: postId, isSuspended: false })
-    .populate("author", "userName")
+    .populate("author", "userName avatar")
     .populate("likes")
-    .sort({ createdAt: -1 }) // Sort by creation date (newest first)
+    .sort({ createdAt: -1 })
     .lean();
 
-  // Build comment tree
   const commentMap = {};
   const topLevelComments = [];
 
-  // Initialize comments with empty replies array
   comments.forEach((comment) => {
-    comment.replies = []; // Initialize replies
-    comment.likeCount = comment.likes.length; // Calculate likeCount
-    delete comment.likes; // Remove likes array
+    comment.replies = [];
+    comment.likeCount = comment.likes.length;
+    delete comment.likes;
     commentMap[comment._id.toString()] = comment;
   });
 
-  // Assign replies to their parents
   comments.forEach((comment) => {
     if (!comment.parentComment) {
       topLevelComments.push(comment);

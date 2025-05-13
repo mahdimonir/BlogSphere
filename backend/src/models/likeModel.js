@@ -23,7 +23,7 @@ const likeSchema = new Schema(
 likeSchema.pre(/^find/, function (next) {
   this.populate({
     path: "likedBy",
-    select: "userName _id",
+    select: "userName _id avatar",
   });
   next();
 });
