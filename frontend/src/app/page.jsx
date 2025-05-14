@@ -11,10 +11,16 @@ export const metadata = {
 
 async function fetchPosts() {
   try {
-    const response = await axiosInstance.get("/posts");
+    const response = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/posts`
+    );
     return response.data?.data?.posts || [];
   } catch (error) {
-    console.error("Error fetching posts:", error);
+    console.error("Error fetching posts:", {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+    });
     return { error: "Failed to load posts. Please try again later." };
   }
 }
