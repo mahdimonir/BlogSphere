@@ -5,19 +5,66 @@ import {
   capitalizeFirstLetter,
   formatDate,
 } from "@/app/configs/constants";
+import axiosInstance from "@/app/utils/axiosConfig";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import "swiper/css";
 import "swiper/css/pagination";
 import { Autoplay, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Demo_Image } from "../assets/demo";
 import CategoryButton from "./CategoryButton";
+import Error from "./Error";
+import Loading from "./Loading";
 import LottiSection from "./LottiSection";
 
-export default function HeroSection({ posts }) {
+export default function HeroSection() {
   const { user } = useAuth();
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch posts from the server
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const params = {
+          page: 1,
+          limit: 5,
+          sort: "createdAt",
+          order: "desc",
+          catagory: "Trending",
+        };
+
+        const response = await axiosInstance.get("/posts", { params });
+
+        setPosts(response.data.data.posts || []);
+      } catch (err) {
+        console.error(
+          "Error fetching hero posts:",
+          err.response?.data || err.message
+        );
+        setError(err.response?.data?.message || "Failed to load posts.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  if (error) {
+    return <Error errMessage={error} />;
+  }
 
   return (
     <>

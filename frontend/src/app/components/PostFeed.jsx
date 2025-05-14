@@ -9,83 +9,66 @@ import Loading from "./Loading";
 import PostCard from "./PostCard";
 
 export default function PostFeed({
-  initialPosts,
-  defaultCategory,
+  initialPosts = [],
+  defaultCategory = "All",
   isAdminView = false,
 }) {
   const { user } = useAuth();
-  const [posts, setPosts] = useState(initialPosts || []);
-  const [activeCategory, setActiveCategory] = useState(
-    defaultCategory || "All"
-  );
+  const [posts, setPosts] = useState(initialPosts);
+  const [activeCategory, setActiveCategory] = useState(defaultCategory);
   const [sortBy, setSortBy] = useState("Newest");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const limit = 9;
+  const limit = 10;
 
-  // Fetch posts from server
-  const fetchPosts = useCallback(
-    async (category, sort, pageNum) => {
-      try {
-        setLoading(true);
-        setError(null);
+  // Fetch posts from the server
+  const fetchPosts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const params = { page: pageNum, limit };
-        if (category !== "All") params.catagory = category;
+      const params = { page, limit };
+      if (activeCategory !== "All") params.catagory = activeCategory;
 
-        if (sort) {
-          let sortField = sort.toLowerCase().replace(" ", "_");
-          let order = "desc";
-          if (sortField === "newest") {
-            sortField = "createdAt";
-            order = "desc";
-          }
-          if (sortField === "oldest") {
-            sortField = "createdAt";
-            order = "asc";
-          }
-          if (sortField === "most_liked") {
-            sortField = "likeCount";
-            order = "desc";
-          }
-          if (sortField === "most_commented") {
-            sortField = "commentCount";
-            order = "desc";
-          }
-          params.sort = sortField;
-          params.order = order;
+      if (sortBy) {
+        let sortField = "";
+        let order = "desc";
+
+        if (sortBy === "Newest") {
+          sortField = "createdAt";
+        } else if (sortBy === "Oldest") {
+          sortField = "createdAt";
+          order = "asc";
+        } else if (sortBy === "Most Liked") {
+          sortField = "likeCount";
+        } else if (sortBy === "Most Commented") {
+          sortField = "commentCount";
         }
 
-        const endpoint =
-          isAdminView && user?.role === "admin" ? "/posts/pending" : "/posts";
-        const response = await axiosInstance.get(endpoint, { params });
-
-        const fetchedPosts = response.data.data.posts || [];
-        setPosts(fetchedPosts);
-        setTotalPages(response.data.data.totalPages || 1);
-      } catch (err) {
-        const errorMessage =
-          err.response?.data?.message || "Failed to load posts";
-        console.error("Fetch error:", err);
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
+        params.sort = sortField;
+        params.order = order;
       }
-    },
-    [isAdminView, user?.role]
-  );
 
-  // Handle post deletion
-  const handlePostDeleted = useCallback((postId) => {
-    setPosts((prevPosts) => prevPosts.filter((post) => post._id !== postId));
-  }, []);
+      const endpoint =
+        isAdminView && user?.role === "admin" ? "/posts/pending" : "/posts";
+      const response = await axiosInstance.get(endpoint, { params });
+
+      setPosts(response.data.data.posts || []);
+      setTotalPages(response.data.data.totalPages || 1);
+    } catch (err) {
+      console.error("Error fetching posts:", err.response?.data || err.message);
+      setError(err.response?.data?.message || "Failed to load posts.");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCategory, sortBy, page, isAdminView, user?.role]);
 
   // Fetch posts when category, sort, or page changes
   useEffect(() => {
-    fetchPosts(activeCategory, sortBy, page);
-  }, [fetchPosts, activeCategory, sortBy, page]);
+    fetchPosts();
+  }, [fetchPosts]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -112,11 +95,7 @@ export default function PostFeed({
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {posts.map((post) => (
-              <PostCard
-                key={post._id}
-                post={post}
-                onPostDeleted={handlePostDeleted}
-              />
+              <PostCard key={post._id} post={post} />
             ))}
           </div>
           {totalPages > 1 && (
