@@ -156,15 +156,26 @@ const deletePost = asyncHandler(async (req, res) => {
 
 // Get paginated approved posts with comments and likes
 const getPosts = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search } = req.query;
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    sort = "createdAt",
+    order = "desc",
+    catagory,
+  } = req.query;
   const userId = req.userId;
 
+  // Match stage for filtering
   const matchStage = {
     status: "approved",
     isSuspended: false,
     ...(search && { title: { $regex: search, $options: "i" } }),
+    ...(catagory &&
+      catagory !== "All" && { catagory: { $regex: catagory, $options: "i" } }),
   };
 
+  // Base aggregation pipeline
   const aggregate = Post.aggregate([
     { $match: matchStage },
     {
@@ -374,9 +385,10 @@ const getPosts = asyncHandler(async (req, res) => {
         likeUsers: 0,
       },
     },
-    { $sort: { createdAt: -1 } },
+    { $sort: { [sort]: order === "asc" ? 1 : -1 } }, // Dynamic sorting
   ]);
 
+  // Pagination options
   const options = {
     page: parseInt(page, 10),
     limit: parseInt(limit, 10),

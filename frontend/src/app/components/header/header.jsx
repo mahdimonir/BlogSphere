@@ -234,9 +234,8 @@ export default function Header() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [dark, setDark] = useState(
-    typeof window !== "undefined" && localStorage.getItem("Dark") === "true"
-  );
+  const [dark, setDark] = useState(false); // Default to false during SSR
+  const [isHydrated, setIsHydrated] = useState(false); // Track hydration
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -272,10 +271,13 @@ export default function Header() {
     return () => window.removeEventListener("resize", handleResize);
   }, [searchOpen]);
 
+  // Initialize dark mode on the client
   useEffect(() => {
-    localStorage.setItem("Dark", dark.toString());
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+    setIsHydrated(true); // Mark as hydrated
+    const isDarkMode = localStorage.getItem("Dark") === "true";
+    setDark(isDarkMode);
+    document.documentElement.classList.toggle("dark", isDarkMode);
+  }, []);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -390,7 +392,14 @@ export default function Header() {
     }
   };
 
-  const toggleTheme = () => setDark((prev) => !prev);
+  // Toggle dark mode
+  const toggleTheme = () => {
+    const newDarkMode = !dark;
+    setDark(newDarkMode);
+    localStorage.setItem("Dark", newDarkMode.toString());
+    document.documentElement.classList.toggle("dark", newDarkMode);
+  };
+
   const toggleNotificationDropdown = () => setNotificationOpen((prev) => !prev);
   const toggleSearch = () => {
     setSearchOpen((prev) => !prev);
@@ -447,6 +456,11 @@ export default function Header() {
     setError(null);
     setFocusedResult(null);
   }, []);
+
+  if (!isHydrated) {
+    // Render a placeholder during hydration to avoid mismatches
+    return <div className="h-10 w-10 bg-gray-300 dark:bg-gray-700"></div>;
+  }
 
   return (
     <nav className="sticky top-0 z-50 bg-gray-50 dark:bg-gray-900 shadow-xl">
