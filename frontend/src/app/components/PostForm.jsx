@@ -175,7 +175,7 @@ export default function PostForm({ postId = null, initialData = null }) {
         toast.success(
           `Post ${isEditMode ? "updated" : "created"} successfully`
         );
-        router.push("/posts");
+        router.push(`/posts/${postId}`);
       }
     } catch (error) {
       console.error(`Error ${postId ? "updating" : "creating"} post:`, error);

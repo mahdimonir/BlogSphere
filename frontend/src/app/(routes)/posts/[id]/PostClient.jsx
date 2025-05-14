@@ -301,18 +301,23 @@ export default function PostClient({ id }) {
     try {
       const response = await axiosInstance.patch(`/comments/${commentId}`, {
         content: editCommentContent,
+        commentId, // Include commentId in the body if required by backend
       });
       const updatedComment = response.data.data;
       setLocalComments((prev) =>
         updateCommentInTree(prev, commentId, {
           ...updatedComment,
-          replies: prev.find((c) => c._id === commentId)?.replies || [],
+          replies:
+            prev.find((c) => c._id === commentId)?.replies ||
+            updatedComment.replies ||
+            [],
         })
       );
       setEditingComment(null);
       setEditCommentContent("");
       toast.success("Comment updated successfully");
     } catch (error) {
+      console.error("Edit comment error:", error.response?.data || error);
       toast.error(error.response?.data?.message || "Failed to update comment");
     }
   };
@@ -321,10 +326,11 @@ export default function PostClient({ id }) {
     if (!confirm("Are you sure you want to delete this comment?")) return;
     try {
       await axiosInstance.delete(`/comments/${commentId}`);
-      setLocalComments((prev) => prev.filter((c) => c._id !== commentId));
+      setLocalComments((prev) => removeCommentFromTree(prev, commentId));
       setLocalCommentCount((prev) => prev - 1);
       toast.success("Comment deleted successfully");
     } catch (error) {
+      console.error("Delete comment error:", error.response?.data || error);
       toast.error(error.response?.data?.message || "Failed to delete comment");
     }
   };
@@ -332,7 +338,7 @@ export default function PostClient({ id }) {
   const updateCommentInTree = (comments, commentId, updatedComment) => {
     return comments.map((comment) =>
       comment._id === commentId
-        ? updatedComment
+        ? { ...comment, ...updatedComment }
         : comment.replies
         ? {
             ...comment,
@@ -344,6 +350,19 @@ export default function PostClient({ id }) {
           }
         : comment
     );
+  };
+
+  const removeCommentFromTree = (comments, commentId) => {
+    return comments
+      .filter((comment) => comment._id !== commentId)
+      .map((comment) =>
+        comment.replies
+          ? {
+              ...comment,
+              replies: removeCommentFromTree(comment.replies, commentId),
+            }
+          : comment
+      );
   };
 
   const handleDeletePost = async () => {
@@ -396,19 +415,9 @@ export default function PostClient({ id }) {
         }
       );
       setLocalComments((prev) =>
-        prev.map((comment) =>
-          comment._id === commentId
-            ? { ...comment, isSuspended: response.data.data.isSuspended }
-            : comment.replies
-            ? {
-                ...comment,
-                replies: updateCommentInTree(comment.replies, commentId, {
-                  ...comment,
-                  isSuspended: response.data.data.isSuspended,
-                }),
-              }
-            : comment
-        )
+        updateCommentInTree(prev, commentId, {
+          isSuspended: response.data.data.isSuspended,
+        })
       );
       toast.success(
         `Comment ${
@@ -557,7 +566,7 @@ export default function PostClient({ id }) {
                 <div className="flex items-center gap-4 mt-2">
                   <button
                     onClick={() => handleCommentLikeToggle(comment._id)}
-                    className="flex items-center text-sm text-gray-500 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400"
+                    className="flex items-center text-sm text-gray-500 dark:text-gray-300"
                     aria-label={
                       commentLikes[comment._id]?.liked
                         ? "Unlike comment"
@@ -569,8 +578,8 @@ export default function PostClient({ id }) {
                       fill={commentLikes[comment._id]?.liked ? "red" : "none"}
                       className={`mr-1 ${
                         commentLikes[comment._id]?.liked
-                          ? "text-red-500"
-                          : "text-gray-500 dark:text-gray-300"
+                          ? "text-red-500 fill-red-500"
+                          : "text-gray-500 dark:text-gray-300 hover:fill-red-500 hover:text-red-500"
                       }`}
                     />
                     {formatNumber(commentLikes[comment._id]?.likeCount || 0)}
@@ -579,7 +588,7 @@ export default function PostClient({ id }) {
                     onClick={() =>
                       setReplyTo(replyTo === comment._id ? null : comment._id)
                     }
-                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
+                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-blue-500"
                   >
                     Reply
                   </button>

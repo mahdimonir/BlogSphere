@@ -18,7 +18,7 @@ export default function PostFeed({
   const [activeCategory, setActiveCategory] = useState(defaultCategory);
   const [sortBy, setSortBy] = useState("Newest");
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const limit = 10;
@@ -26,7 +26,7 @@ export default function PostFeed({
   // Fetch posts from the server
   const fetchPosts = useCallback(async () => {
     try {
-      setLoading(true);
+      // setLoading(true);
       setError(null);
 
       const params = { page, limit };
@@ -91,42 +91,42 @@ export default function PostFeed({
         sortBy={sortBy}
         setSortBy={setSortBy}
       />
-      {posts.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post) => (
-              <PostCard key={post._id} post={post} />
-            ))}
+      {/* { posts.length > 0 ? ( */}
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {posts.map((post) => (
+            <PostCard key={post._id} post={post} />
+          ))}
+        </div>
+        {totalPages > 1 && (
+          <div className="mt-8 flex justify-center gap-2">
+            <button
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Previous page"
+            >
+              Previous
+            </button>
+            <span className="px-4 py-2 text-gray-800 dark:text-gray-100">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Next page"
+            >
+              Next
+            </button>
           </div>
-          {totalPages > 1 && (
-            <div className="mt-8 flex justify-center gap-2">
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page === 1}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Previous page"
-              >
-                Previous
-              </button>
-              <span className="px-4 py-2 text-gray-800 dark:text-gray-100">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page === totalPages}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Next page"
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </>
-      ) : (
+        )}
+      </>
+      {/* ) : (
         <div className="text-center text-gray-500 dark:text-gray-400 py-4">
           No posts available.
         </div>
-      )}
+      )} */}
     </div>
   );
 }
