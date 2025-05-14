@@ -52,7 +52,7 @@ const markNotificationAsRead = asyncHandler(async (req, res) => {
   const notification = await Notification.findById(id).populate("user");
   throwIf(!notification, new NotFoundError("Notification not found"));
   throwIf(
-    notification.user._id.toString() !== req.userId,
+    notification.user._id.toString() !== req.userId.toString(),
     new ForbiddenError("Unauthorized")
   );
 
@@ -78,4 +78,41 @@ const markAllNotificationsAsRead = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "All notifications marked as read"));
 });
 
-export { getNotifications, markAllNotificationsAsRead, markNotificationAsRead };
+// Delete a notification
+const deleteNotification = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  console.log("Deleteing request:", req);
+  throwIf(!req.userId, new ForbiddenError("Unauthorized"));
+
+  const notification = await Notification.findById(id).populate("user");
+  throwIf(!notification, new NotFoundError("Notification not found"));
+  throwIf(
+    notification.user._id.toString() !== req.userId.toString(),
+    new ForbiddenError("Unauthorized")
+  );
+
+  await Notification.findByIdAndDelete(id);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Notification deleted successfully"));
+});
+
+// Delete all notifications for the authenticated user
+const deleteAllNotifications = asyncHandler(async (req, res) => {
+  throwIf(!req.userId, new ForbiddenError("Unauthorized"));
+
+  await Notification.deleteMany({ user: req.userId });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "All notifications deleted successfully"));
+});
+
+export {
+  deleteAllNotifications,
+  deleteNotification,
+  getNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+};

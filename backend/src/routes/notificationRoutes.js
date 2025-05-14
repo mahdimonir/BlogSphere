@@ -1,5 +1,7 @@
 import { Router } from "express";
 import {
+  deleteAllNotifications,
+  deleteNotification,
   getNotifications,
   markAllNotificationsAsRead,
   markNotificationAsRead,
@@ -11,7 +13,9 @@ const router = Router();
 router
   .route("/")
   .get(verifyJWT, getNotifications)
-  .patch(verifyJWT, markAllNotificationsAsRead);
+  .patch(verifyJWT, markAllNotificationsAsRead)
+  .delete(verifyJWT, deleteAllNotifications);
 router.route("/:id/read").patch(verifyJWT, markNotificationAsRead);
+router.route("/:id").delete(verifyJWT, deleteNotification);
 
 export default router;
