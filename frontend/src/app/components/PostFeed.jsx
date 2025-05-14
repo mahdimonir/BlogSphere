@@ -27,20 +27,26 @@ export default function PostFeed({
         setError(null);
 
         const params = { page, limit };
-        if (activeCategory !== "All") params.catagory = activeCategory;
+        if (category !== "All") params.catagory = category;
 
-        if (sortBy) {
-          let sortField = sortBy.toLowerCase().replace(" ", "_");
+        if (sort) {
+          let sortField = sort.toLowerCase().replace(" ", "_");
           let order = "desc";
           if (sortField === "newest") {
             sortField = "createdAt";
-          } else if (sortField === "oldest") {
+            order = "desc";
+          }
+          if (sortField === "oldest") {
             sortField = "createdAt";
             order = "asc";
-          } else if (sortField === "most_liked") {
+          }
+          if (sortField === "most_liked") {
             sortField = "likeCount";
-          } else if (sortField === "most_commented") {
+            order = "desc";
+          }
+          if (sortField === "most_commented") {
             sortField = "commentCount";
+            order = "desc";
           }
           params.sort = sortField;
           params.order = order;
