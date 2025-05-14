@@ -14,11 +14,11 @@ import { toast } from "react-hot-toast";
 export default function Posts() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [allPosts, setAllPosts] = useState([]); // For admin's "All Posts"
-  const [myPosts, setMyPosts] = useState([]); // For admin's "My Posts" or user's approved posts
-  const [pendingPosts, setPendingPosts] = useState([]); // For user's pending posts
+  const [allPosts, setAllPosts] = useState([]);
+  const [myPosts, setMyPosts] = useState([]);
+  const [pendingPosts, setPendingPosts] = useState([]);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState("allposts"); // Default to "allposts" for admins, "published" for users
+  const [activeTab, setActiveTab] = useState("allposts");
   const [postLoading, setPostLoading] = useState(true);
 
   useEffect(() => {
@@ -26,7 +26,6 @@ export default function Posts() {
       router.push("/login");
     }
     if (user) {
-      // Set default tab based on role
       setActiveTab(user.role === "admin" ? "allposts" : "published");
 
       const fetchPosts = async () => {
@@ -36,7 +35,6 @@ export default function Posts() {
           let fullAuthors = {};
 
           if (user.role === "admin") {
-            // Fetch both /posts and /posts/my for admins
             const [allPostsResponse, myPostsResponse] = await Promise.all([
               axiosInstance.get("/posts"),
               axiosInstance.get("/posts/my"),
@@ -44,7 +42,6 @@ export default function Posts() {
             const allPostsData = allPostsResponse.data?.data?.posts || [];
             const myPostsData = myPostsResponse.data?.data?.posts || [];
 
-            // Fetch full author data for unique authors
             const uniqueAuthors = [
               ...new Set([
                 ...allPostsData.map((post) => post.author.userName),

@@ -81,9 +81,9 @@ export default function PostCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingComment, setEditingComment] = useState(null);
   const [editCommentContent, setEditCommentContent] = useState("");
+  const [showTags, setShowTags] = useState(false);
   const postDropdownRef = useRef(null);
   const commentDropdownRefs = useRef({});
-  const [showTags, setShowTags] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -93,7 +93,6 @@ export default function PostCard({
       ) {
         if (dropdownOpen === "post") setDropdownOpen(null);
       }
-
       Object.entries(commentDropdownRefs.current).forEach(
         ([commentId, ref]) => {
           if (ref.current && !ref.current.contains(event.target)) {
@@ -102,7 +101,6 @@ export default function PostCard({
         }
       );
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
@@ -112,25 +110,16 @@ export default function PostCard({
       toast.error("Please log in to like posts");
       return;
     }
-
     const optimisticLiked = !liked;
     const optimisticLikes = optimisticLiked ? likesState + 1 : likesState - 1;
-
     setLiked(optimisticLiked);
     setLikes(optimisticLikes);
-
     try {
       const response = await axiosInstance.patch(`/likes/toggle`, {
         postId: _id,
       });
-      if (response.status === 200 || response.status === 201) {
-        setLiked(response.data.data.isLiked);
-        setLikes(response.data.data.likeCount);
-      } else {
-        setLiked(!optimisticLiked);
-        setLikes(likesState);
-        toast.error("Failed to toggle like");
-      }
+      setLiked(response.data.data.isLiked);
+      setLikes(response.data.data.likeCount);
     } catch (error) {
       setLiked(!optimisticLiked);
       setLikes(likesState);
@@ -143,7 +132,6 @@ export default function PostCard({
       toast.error("Please log in to like comments");
       return;
     }
-
     const currentState = commentLikes[commentId] || {
       liked: false,
       likeCount: 0,
@@ -152,31 +140,21 @@ export default function PostCard({
     const optimisticLikeCount = optimisticLiked
       ? currentState.likeCount + 1
       : currentState.likeCount - 1;
-
     setCommentLikes((prev) => ({
       ...prev,
       [commentId]: { liked: optimisticLiked, likeCount: optimisticLikeCount },
     }));
-
     try {
       const response = await axiosInstance.patch(`/likes/toggle`, {
         commentId,
       });
-      if (response.status === 200 || response.status === 201) {
-        setCommentLikes((prev) => ({
-          ...prev,
-          [commentId]: {
-            liked: response.data.data.isLiked,
-            likeCount: response.data.data.likeCount,
-          },
-        }));
-      } else {
-        setCommentLikes((prev) => ({
-          ...prev,
-          [commentId]: currentState,
-        }));
-        toast.error("Failed to toggle comment like");
-      }
+      setCommentLikes((prev) => ({
+        ...prev,
+        [commentId]: {
+          liked: response.data.data.isLiked,
+          likeCount: response.data.data.likeCount,
+        },
+      }));
     } catch (error) {
       setCommentLikes((prev) => ({
         ...prev,
@@ -197,7 +175,6 @@ export default function PostCard({
       toast.error("Comment cannot be empty");
       return;
     }
-
     try {
       const response = await axiosInstance.post(`/comments`, {
         postId: _id,
@@ -232,7 +209,6 @@ export default function PostCard({
       toast.error("Reply cannot be empty");
       return;
     }
-
     try {
       const response = await axiosInstance.post(`/comments/replies`, {
         parentCommentId,
@@ -312,63 +288,48 @@ export default function PostCard({
       toast.error("Comment cannot be empty");
       return;
     }
-
     try {
       const response = await axiosInstance.patch(`/comments/${commentId}`, {
         content: editCommentContent,
+        commentId,
       });
       const updatedComment = response.data.data;
       setLocalComments((prev) =>
         updateCommentInTree(prev, commentId, {
           ...updatedComment,
-          replies: prev.find((c) => c._id === commentId)?.replies || [],
+          replies:
+            prev.find((c) => c._id === commentId)?.replies ||
+            updatedComment.replies ||
+            [],
         })
       );
       setEditingComment(null);
       setEditCommentContent("");
       toast.success("Comment updated successfully");
     } catch (error) {
+      console.error("Edit comment error:", error.response?.data || error);
       toast.error(error.response?.data?.message || "Failed to update comment");
     }
   };
 
   const handleDeleteComment = async (commentId) => {
     if (!confirm("Are you sure you want to delete this comment?")) return;
-
     try {
+      console.log("Deleting comment with ID:", commentId);
       await axiosInstance.delete(`/comments/${commentId}`);
-      setLocalComments((prev) =>
-        prev
-          .filter((c) => c._id !== commentId)
-          .map((comment) => ({
-            ...comment,
-            replies: comment.replies
-              ? updateNestedDelete(comment.replies, commentId)
-              : [],
-          }))
-      );
+      setLocalComments((prev) => removeCommentFromTree(prev, commentId));
       setLocalCommentCount((prev) => prev - 1);
       toast.success("Comment deleted successfully");
     } catch (error) {
+      console.error("Delete comment error:", error.response?.data || error);
       toast.error(error.response?.data?.message || "Failed to delete comment");
     }
-  };
-
-  const updateNestedDelete = (replies, commentId) => {
-    return replies
-      .filter((reply) => reply._id !== commentId)
-      .map((reply) => ({
-        ...reply,
-        replies: reply.replies
-          ? updateNestedDelete(reply.replies, commentId)
-          : [],
-      }));
   };
 
   const updateCommentInTree = (comments, commentId, updatedComment) => {
     return comments.map((comment) =>
       comment._id === commentId
-        ? updatedComment
+        ? { ...comment, ...updatedComment }
         : comment.replies
         ? {
             ...comment,
@@ -382,6 +343,19 @@ export default function PostCard({
     );
   };
 
+  const removeCommentFromTree = (comments, commentId) => {
+    return comments
+      .filter((comment) => comment._id !== commentId)
+      .map((comment) =>
+        comment.replies
+          ? {
+              ...comment,
+              replies: removeCommentFromTree(comment.replies, commentId),
+            }
+          : comment
+      );
+  };
+
   const handleDeletePost = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -390,7 +364,6 @@ export default function PostCard({
       toast.error("Invalid post ID");
       return;
     }
-
     setIsDeleting(true);
     try {
       await axiosInstance.delete(`/posts/${_id}`);
@@ -418,6 +391,11 @@ export default function PostCard({
       toast.success(`Post status updated to ${newStatus}`);
       if (onPostDeleted) onPostDeleted(_id);
     } catch (error) {
+      console.error("Failed to update status:", {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
       toast.error(error.response?.data?.message || "Failed to update status");
     }
   };
@@ -426,7 +404,9 @@ export default function PostCard({
     e.preventDefault();
     e.stopPropagation();
     try {
-      const response = await axiosInstance.patch(`/admin/suspend/post/${_id}`);
+      const response = await axiosInstance.patch(`/admin/suspend/post/${_id}`, {
+        isSuspended: !isSuspended,
+      });
       toast.success(
         `Post ${
           response.data.data.isSuspended ? "suspended" : "unsuspended"
@@ -434,6 +414,11 @@ export default function PostCard({
       );
       if (onPostDeleted) onPostDeleted(_id);
     } catch (error) {
+      console.error("Failed to suspend post:", {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
       toast.error(
         error.response?.data?.message || "Failed to suspend/unsuspend post"
       );
@@ -443,22 +428,16 @@ export default function PostCard({
   const handleSuspendComment = async (commentId) => {
     try {
       const response = await axiosInstance.patch(
-        `/admin/suspend/comment/${commentId}`
+        `/admin/suspend/comment/${commentId}`,
+        {
+          isSuspended: !localComments.find((c) => c._id === commentId)
+            ?.isSuspended,
+        }
       );
       setLocalComments((prev) =>
-        prev.map((comment) =>
-          comment._id === commentId
-            ? { ...comment, isSuspended: response.data.data.isSuspended }
-            : comment.replies
-            ? {
-                ...comment,
-                replies: updateCommentInTree(comment.replies, commentId, {
-                  ...comment,
-                  isSuspended: response.data.data.isSuspended,
-                }),
-              }
-            : comment
-        )
+        updateCommentInTree(prev, commentId, {
+          isSuspended: response.data.data.isSuspended,
+        })
       );
       toast.success(
         `Comment ${
@@ -466,6 +445,11 @@ export default function PostCard({
         } successfully`
       );
     } catch (error) {
+      console.error("Failed to suspend comment:", {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
       toast.error(
         error.response?.data?.message || "Failed to suspend/unsuspend comment"
       );
@@ -501,7 +485,7 @@ export default function PostCard({
             />
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <Link href={`/users/${comment.author.userName}`}>
+                <Link href={`/profile/${comment.author.userName}`}>
                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-blue-500 dark:hover:text-blue-400">
                     {capitalizeFirstLetter(comment.author.userName)}
                   </span>
@@ -532,7 +516,7 @@ export default function PostCard({
                         />
                       </button>
                       {dropdownOpen === comment._id && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-10 transition-all duration-200">
                           {isCommentAuthor && (
                             <>
                               <button
@@ -541,7 +525,7 @@ export default function PostCard({
                                   setEditCommentContent(comment.content);
                                   setDropdownOpen(null);
                                 }}
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                                className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left"
                               >
                                 <Edit size={16} className="mr-2" />
                                 Edit Comment
@@ -551,7 +535,7 @@ export default function PostCard({
                                   handleDeleteComment(comment._id);
                                   setDropdownOpen(null);
                                 }}
-                                className="flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                                className="flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left"
                               >
                                 <Trash2 size={16} className="mr-2" />
                                 Delete Comment
@@ -564,7 +548,7 @@ export default function PostCard({
                                 handleSuspendComment(comment._id);
                                 setDropdownOpen(null);
                               }}
-                              className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                              className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left"
                             >
                               <Ban size={16} className="mr-2" />
                               {comment.isSuspended
@@ -609,7 +593,7 @@ export default function PostCard({
                 <div className="flex items-center gap-4 mt-2">
                   <button
                     onClick={() => handleCommentLikeToggle(comment._id)}
-                    className="flex items-center text-sm text-gray-500 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400"
+                    className="flex items-center text-sm text-gray-500 dark:text-gray-300"
                     aria-label={
                       commentLikes[comment._id]?.liked
                         ? "Unlike comment"
@@ -621,8 +605,8 @@ export default function PostCard({
                       fill={commentLikes[comment._id]?.liked ? "red" : "none"}
                       className={`mr-1 ${
                         commentLikes[comment._id]?.liked
-                          ? "text-red-500"
-                          : "text-gray-500 dark:text-gray-300"
+                          ? "text-red-500 fill-red-500"
+                          : "text-gray-500 dark:text-gray-300 hover:fill-red-500 hover:text-red-500"
                       }`}
                     />
                     {formatNumber(commentLikes[comment._id]?.likeCount || 0)}
@@ -631,7 +615,7 @@ export default function PostCard({
                     onClick={() =>
                       setReplyTo(replyTo === comment._id ? null : comment._id)
                     }
-                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
+                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-blue-500"
                   >
                     Reply
                   </button>
@@ -701,7 +685,7 @@ export default function PostCard({
 
   return (
     <div
-      className={`rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-lg flex flex-col border border-gray-200 dark:border-gray-700 ${className} ${
+      className={`relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white transition-shadow hover:shadow-lg flex flex-col border border-gray-200 dark:border-gray-700 ${className} ${
         isSuspended ? "opacity-50" : ""
       }`}
       style={{ minHeight: compact ? "120px" : "400px" }}
@@ -857,7 +841,7 @@ export default function PostCard({
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Write a comment..."
-              className="w-full p-2 text-sm border rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full max-w-full p-2 text-sm border rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={!user || isSuspended}
             />
             <div className="flex justify-end mt-2">
@@ -896,12 +880,13 @@ export default function PostCard({
             />
           </button>
           {dropdownOpen === "post" && (
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
               {isAuthor && (
                 <>
                   <Link
                     href={`/posts/edit/${_id}`}
                     className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <Edit size={16} className="mr-2" />
                     Edit Post
@@ -914,33 +899,25 @@ export default function PostCard({
                     }`}
                   >
                     <Trash2 size={16} className="mr-2" />
-                    Delete Post
+                    {isDeleting ? "Deleting..." : "Delete Post"}
                   </button>
-                  <button
-                    onClick={(e) =>
-                      handleUpdateStatus(
-                        e,
-                        status === "approved" ? "pending" : "approved"
-                      )
-                    }
-                    className={`flex items-center px-4 py-2 text-sm ${
-                      status === "approved"
-                        ? "text-yellow-600 dark:text-yellow-400"
-                        : "text-green-600 dark:text-green-400"
-                    } hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left`}
-                  >
-                    {status === "approved" ? (
-                      <>
-                        <Ban size={16} className="mr-2" />
-                        Set to Pending
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle size={16} className="mr-2" />
-                        Approve
-                      </>
-                    )}
-                  </button>
+                  {status === "pending" ? (
+                    <button
+                      onClick={(e) => handleUpdateStatus(e, "approved")}
+                      className="flex items-center px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                    >
+                      <CheckCircle size={16} className="mr-2" />
+                      Approve Post
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => handleUpdateStatus(e, "pending")}
+                      className="flex items-center px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+                    >
+                      <Ban size={16} className="mr-2" />
+                      Set to Pending
+                    </button>
+                  )}
                 </>
               )}
               {isAdmin && (

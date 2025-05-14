@@ -21,15 +21,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const useClickOutside = (callback) => {
   const ref = useRef(null);
+  const callbackRef = useCallback(callback, [callback]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (ref.current && !ref.current.contains(event.target)) {
-        callback();
+        callbackRef();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [callback]);
+  }, [callbackRef]);
+
   return ref;
 };
 
@@ -114,7 +117,7 @@ const UserActions = ({ user, logout, authLoading, model, onClick }) => {
         logout();
         if (onClick) onClick();
       }}
-      className="text-sm text-white bg-red-400 hover:bg-red-500 hover:shadow text-center px-3 py-1 rounded-sm w-full"
+      className="text-sm text-white bg-red-400 hover:bg-red-500 hover:shadow text-center px-3 py-1 rounded-sm w-full cursor-pointer"
       aria-label="Logout"
     >
       Logout
@@ -122,7 +125,7 @@ const UserActions = ({ user, logout, authLoading, model, onClick }) => {
   ) : (
     <Link
       href="/login"
-      className="text-sm bg-blue-500 text-white text-center px-3 py-1 rounded-sm hover:bg-blue-600 block w-full"
+      className="text-sm bg-blue-500 text-white text-center px-3 py-1 rounded-sm hover:bg-blue-600 block w-full cursor-pointer"
       onClick={onClick}
       aria-label="Sign In"
     >
@@ -138,9 +141,13 @@ const UserSection = ({
   toggleNotificationDropdown,
   notificationOpen,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  deleteAllNotifications,
   notificationRef,
   model,
   isMobile,
+  setError,
 }) => {
   if (authLoading || (model && isMobile)) return null;
   if (!user) return null;
@@ -154,9 +161,9 @@ const UserSection = ({
           aria-expanded={notificationOpen}
         >
           <Bell className="h-5 w-5 text-gray-900 dark:text-gray-100" />
-          {notifications.length > 0 && (
+          {notifications.filter((n) => !n.isRead).length > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-              {notifications.length}
+              {notifications.filter((n) => !n.isRead).length}
             </span>
           )}
         </button>
@@ -168,6 +175,22 @@ const UserSection = ({
               </div>
             ) : (
               <div className="p-4">
+                <div className="flex justify-between mb-2">
+                  <button
+                    onClick={markAllNotificationsAsRead}
+                    className="text-xs text-blue-500 hover:text-blue-600"
+                    aria-label="Mark all notifications as read"
+                  >
+                    Mark all as read
+                  </button>
+                  <button
+                    onClick={deleteAllNotifications}
+                    className="text-xs text-red-500 hover:text-red-600"
+                    aria-label="Delete all notifications"
+                  >
+                    Delete all
+                  </button>
+                </div>
                 {notifications.map((notification) => (
                   <div
                     key={notification._id}
@@ -198,6 +221,13 @@ const UserSection = ({
                           Mark as read
                         </button>
                       )}
+                      <button
+                        onClick={() => deleteNotification(notification._id)}
+                        className="text-xs text-red-500 hover:text-red-600"
+                        aria-label="Delete notification"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -234,8 +264,8 @@ export default function Header() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [dark, setDark] = useState(false); // Default to false during SSR
-  const [isHydrated, setIsHydrated] = useState(false); // Track hydration
+  const [dark, setDark] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -271,9 +301,8 @@ export default function Header() {
     return () => window.removeEventListener("resize", handleResize);
   }, [searchOpen]);
 
-  // Initialize dark mode on the client
   useEffect(() => {
-    setIsHydrated(true); // Mark as hydrated
+    setIsHydrated(true);
     const isDarkMode = localStorage.getItem("Dark") === "true";
     setDark(isDarkMode);
     document.documentElement.classList.toggle("dark", isDarkMode);
@@ -386,13 +415,44 @@ export default function Header() {
   const markNotificationAsRead = async (id) => {
     try {
       await axiosInstance.patch(`/notifications/${id}/read`, {});
-      setNotifications((prev) => prev.filter((n) => n._id !== id));
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+      );
     } catch (error) {
       setError("Failed to mark notification as read.");
     }
   };
 
-  // Toggle dark mode
+  const markAllNotificationsAsRead = async () => {
+    try {
+      await axiosInstance.patch("/notifications", {});
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setNotificationOpen(false);
+    } catch (error) {
+      setError("Failed to mark all notifications as read.");
+    }
+  };
+
+  const deleteNotification = async (id) => {
+    try {
+      await axiosInstance.delete(`/notifications/${id}`);
+      setNotifications((prev) => prev.filter((n) => n._id !== id));
+      setNotificationOpen(false);
+    } catch (error) {
+      setError("Failed to delete notification.");
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    try {
+      await axiosInstance.delete("/notifications");
+      setNotifications([]);
+      setNotificationOpen(false);
+    } catch (error) {
+      setError("Failed to delete all notifications.");
+    }
+  };
+
   const toggleTheme = () => {
     const newDarkMode = !dark;
     setDark(newDarkMode);
@@ -458,7 +518,6 @@ export default function Header() {
   }, []);
 
   if (!isHydrated) {
-    // Render a placeholder during hydration to avoid mismatches
     return <div className="h-10 w-10 bg-gray-300 dark:bg-gray-700"></div>;
   }
 
@@ -642,9 +701,13 @@ export default function Header() {
               toggleNotificationDropdown={toggleNotificationDropdown}
               notificationOpen={notificationOpen}
               markNotificationAsRead={markNotificationAsRead}
+              markAllNotificationsAsRead={markAllNotificationsAsRead}
+              deleteNotification={deleteNotification}
+              deleteAllNotifications={deleteAllNotifications}
               notificationRef={notificationRef}
               model={model}
               isMobile={isMobile}
+              setError={setError}
             />
           </div>
 

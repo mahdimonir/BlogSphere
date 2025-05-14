@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
+import { formatDate } from "../configs/constants";
 import Loading from "./Loading";
 import PostCard from "./PostCard";
 import UserCard from "./UserCard";
@@ -372,13 +373,6 @@ const ProfileActions = ({
 };
 
 const UserDetails = ({ profile }) => {
-  const formatDate = (date) =>
-    new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-
   return (
     <div className="mt-4 text-gray-600 dark:text-gray-400 flex">
       <div className="flex flex-col items-start">
