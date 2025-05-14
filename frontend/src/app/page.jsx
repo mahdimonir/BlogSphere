@@ -12,7 +12,7 @@ export const metadata = {
 async function fetchPosts() {
   try {
     const response = await axiosInstance.get("/posts");
-    return response.data.data.posts || [];
+    return response.data?.data?.posts || [];
   } catch (error) {
     console.error("Error fetching posts:", error);
     return { error: "Failed to load posts. Please try again later." };
