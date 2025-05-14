@@ -32,7 +32,19 @@ const createCommentDocument = async ({
   });
   await comment.save();
 
-  await comment.populate({ path: "author", select: "userName avatar" });
+  await comment
+    .populate({
+      path: "author",
+      select: "userName avatar",
+    })
+    .populate({
+      path: "parentComment",
+      select: "content",
+    })
+    .populate({
+      path: "post",
+      select: "title",
+    });
 
   // Initialize fields expected by frontend
   return {
@@ -195,7 +207,7 @@ const updateComment = asyncHandler(async (req, res) => {
   );
 
   throwIf(
-    comment.author._id.toString() !== userId,
+    comment.author._id.toString() !== userId.toString(),
     new ForbiddenError("You are not authorized to update this comment")
   );
 
@@ -212,7 +224,6 @@ const updateComment = asyncHandler(async (req, res) => {
 // Delete a comment (and its replies recursively)
 const deleteComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
-  const userId = req.userId;
 
   throwIf(!commentId, new ValidationError("Comment ID is required"));
 
@@ -227,10 +238,11 @@ const deleteComment = asyncHandler(async (req, res) => {
     );
 
     throwIf(
-      comment.author._id.toString() !== userId,
+      comment.author._id.toString() !== req.userId.toString(),
       new ForbiddenError("You are not authorized to delete this comment")
     );
 
+    // Delete replies recursively
     const deleteReplies = async (commentId) => {
       const comment = await Comment.findById(commentId)
         .select("replies")

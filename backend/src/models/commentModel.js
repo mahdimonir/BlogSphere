@@ -45,7 +45,15 @@ commentSchema.pre(/^find/, function (next) {
   this.populate({
     path: "author",
     select: "userName avatar",
-  });
+  })
+    .populate({
+      path: "parentComment",
+      select: "content",
+    })
+    .populate({
+      path: "post",
+      select: "title",
+    });
   next();
 });
 
