@@ -17,24 +17,25 @@ export default function SuspendedList({ type, isAdmin, userName }) {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        let endpoint;
-        if (isAdmin) {
-          endpoint = `/admin/suspended/${type}`;
-        } else {
-          endpoint = `/users/suspend/${type}`;
-        }
+        setItems([]);
+        const endpoint = isAdmin
+          ? `/admin/suspended/${type}`
+          : `/users/suspended/${type}`;
+        console.log(`Fetching ${type} from ${endpoint}, isAdmin: ${isAdmin}`);
         const response = await axiosInstance.get(endpoint);
         const fetchedItems = response.data.data[type] || [];
+        console.log(`Fetched ${type}:`, fetchedItems);
         setItems(fetchedItems);
       } catch (err) {
-        setError(
-          err.response?.data?.message || `Failed to fetch suspended ${type}`
-        );
+        const message =
+          err.response?.data?.message || `Failed to fetch suspended ${type}`;
+        console.error(`Error fetching ${type}:`, err.response?.status, err);
+        setError(message);
       } finally {
         setLoading(false);
       }
     };
-    if (userName || isAdmin) {
+    if (type) {
       fetchItems();
     }
   }, [type, isAdmin, userName]);
@@ -154,8 +155,8 @@ export default function SuspendedList({ type, isAdmin, userName }) {
                     Created: {formatDate(item.createdAt)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Likes: {item.likes || 0} | Comments:{" "}
-                    {item.commentCount || 0}
+                    Likes: {item.likeCount || item.likes?.length || 0} |
+                    Comments: {item.commentCount || 0}
                   </p>
                   <p className="text-sm italic text-red-500 dark:text-red-400">
                     Reason:{" "}
@@ -184,7 +185,7 @@ export default function SuspendedList({ type, isAdmin, userName }) {
                     Created: {formatDate(item.createdAt)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Likes: {item.likeCount || 0} {/* Fixed: Use likeCount */}
+                    Likes: {item.likeCount || 0}
                   </p>
                   {item.parentComment && (
                     <p className="text-sm text-gray-600 dark:text-gray-400">
