@@ -477,7 +477,7 @@ export default function UserProfile({ userName }) {
         if (isAuthor || (isAdmin && isOwnProfile)) {
           // Authors or admins viewing own profile: fetch /posts/my and /posts/pending
           const [approvedResponse, pendingResponse] = await Promise.all([
-            axiosInstance.get("/posts/my"),
+            axiosInstance.get(`/posts/?author=${targetUserName}`),
             axiosInstance.get("/posts/pending"),
           ]);
           approved =
@@ -489,7 +489,7 @@ export default function UserProfile({ userName }) {
           // Admins viewing another user's profile: fetch /posts, /posts/pending, /admin/suspended/post
           const [approvedResponse, pendingResponse, suspendedResponse] =
             await Promise.all([
-              axiosInstance.get(`/posts?author=${targetUserName}`),
+              axiosInstance.get(`/posts/?author=${targetUserName}`),
               axiosInstance.get(`/posts/pending?author=${targetUserName}`),
               axiosInstance.get(
                 `/admin/suspended/posts?author=${targetUserName}`

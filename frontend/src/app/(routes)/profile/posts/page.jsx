@@ -37,7 +37,7 @@ export default function Posts() {
           if (user.role === "admin") {
             const [allPostsResponse, myPostsResponse] = await Promise.all([
               axiosInstance.get("/posts"),
-              axiosInstance.get("/posts/my"),
+              axiosInstance.get(`/posts/?author=${user.userName}`),
             ]);
             const allPostsData = allPostsResponse.data?.data?.posts || [];
             const myPostsData = myPostsResponse.data?.data?.posts || [];
@@ -76,7 +76,7 @@ export default function Posts() {
           } else {
             // Fetch /posts/my and /posts/pending for users
             const [myPostsResponse, pendingPostsResponse] = await Promise.all([
-              axiosInstance.get("/posts/my"),
+              axiosInstance.get(`/posts/?author=${user.userName}`),
               axiosInstance.get("/posts/pending"),
             ]);
             const myPostsData =

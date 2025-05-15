@@ -7,6 +7,7 @@ import { Upload } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
 export default function UpdateProfile() {
   const { user, loading: authLoading } = useAuth();
@@ -22,7 +23,6 @@ export default function UpdateProfile() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -61,7 +61,6 @@ export default function UpdateProfile() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
 
     try {
       // Update profile (name, bio, userName)
@@ -77,16 +76,13 @@ export default function UpdateProfile() {
       }));
 
       // Update avatar if changed
+      let avatarResponse;
       if (avatarFile) {
         const avatarData = new FormData();
         avatarData.append("avatar", avatarFile);
-        const avatarResponse = await axiosInstance.patch(
-          "/auth/avatar",
-          avatarData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
-        );
+        avatarResponse = await axiosInstance.patch("/auth/avatar", avatarData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
         setFormData((prev) => ({
           ...prev,
           avatar: avatarResponse.data.data.avatar,
@@ -94,7 +90,6 @@ export default function UpdateProfile() {
         setPreview(avatarResponse.data.data.avatar);
       }
 
-      setSuccess("Profile updated successfully");
       setAvatarFile(null);
 
       // Update localStorage user
@@ -105,6 +100,16 @@ export default function UpdateProfile() {
           name: formData.name,
         })
       );
+
+      if (
+        profileResponse.status === 200 ||
+        profileResponse.status === 201 ||
+        (avatarResponse &&
+          (avatarResponse.status === 200 || avatarResponse.status === 201))
+      ) {
+        toast.success("Profile updated successfully");
+        router.push(`/profile`);
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update profile");
     }
@@ -127,14 +132,6 @@ export default function UpdateProfile() {
           role="alert"
         >
           {error}
-        </p>
-      )}
-      {success && (
-        <p
-          className="mb-4 p-3 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded-lg"
-          role="alert"
-        >
-          {success}
         </p>
       )}
       <form onSubmit={handleSubmit} className="space-y-6">

@@ -1,9 +1,7 @@
 // routes/auth.routes.js
 import { Router } from "express";
-import {
-  getSuspendedComments,
-  getSuspendedPosts,
-} from "../controllers/adminController.js";
+import { getSuspendedComments } from "../controllers/commentController.js";
+import { getSuspendedPosts } from "../controllers/postController.js";
 import {
   followUser,
   getAllUser,

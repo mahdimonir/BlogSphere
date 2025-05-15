@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Comment } from "../models/commentModel.js";
 import { Like } from "../models/likeModel.js";
 import { Post } from "../models/postModel.js";
+import { User } from "../models/userModel.js";
 import {
   ForbiddenError,
   NotFoundError,
@@ -154,7 +155,6 @@ const deletePost = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "Post deleted successfully"));
 });
 
-// Get paginated approved posts with comments and likes
 const getPosts = asyncHandler(async (req, res) => {
   const {
     page = 1,
@@ -163,8 +163,21 @@ const getPosts = asyncHandler(async (req, res) => {
     sort = "createdAt",
     order = "desc",
     catagory,
+    author, // New query parameter for userName
   } = req.query;
-  const userId = req.userId;
+  const userId = req.userId; // From verifyJWT middleware
+
+  // Resolve author userName to userId if provided
+  let authorId;
+  if (author) {
+    const user = await User.findOne({ userName: author }).select("_id");
+    if (!user) {
+      return res
+        .status(404)
+        .json(new ApiResponse(404, null, "Author not found"));
+    }
+    authorId = user._id;
+  }
 
   // Match stage for filtering
   const matchStage = {
@@ -173,6 +186,7 @@ const getPosts = asyncHandler(async (req, res) => {
     ...(search && { title: { $regex: search, $options: "i" } }),
     ...(catagory &&
       catagory !== "All" && { catagory: { $regex: catagory, $options: "i" } }),
+    ...(authorId && { author: new mongoose.Types.ObjectId(authorId) }),
   };
 
   // Base aggregation pipeline
@@ -385,7 +399,7 @@ const getPosts = asyncHandler(async (req, res) => {
         likeUsers: 0,
       },
     },
-    { $sort: { [sort]: order === "asc" ? 1 : -1 } }, // Dynamic sorting
+    { $sort: { [sort]: order === "asc" ? 1 : -1 } },
   ]);
 
   // Pagination options
@@ -435,15 +449,16 @@ const getPosts = asyncHandler(async (req, res) => {
   );
 });
 
-// Get paginated pending posts (admin only)
+// Pending posts
 const getPendingPosts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, search } = req.query;
   const userId = req.userId;
 
   const matchStage = {
-    status: "pending",
     isSuspended: false,
+    status: "pending",
     author: new mongoose.Types.ObjectId(userId),
+    ...(search && { title: { $regex: search, $options: "i" } }),
   };
 
   const aggregate = Post.aggregate([
@@ -700,6 +715,74 @@ const getPendingPosts = asyncHandler(async (req, res) => {
         totalPosts: result.totalDocs,
       },
       "Pending posts retrieved successfully"
+    )
+  );
+});
+
+const getSuspendedPosts = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, author } = req.query;
+  const userId = req.userId;
+
+  // Resolve author userName to userId if provided
+  let authorId;
+  if (author) {
+    const user = await User.findOne({ userName: author }).select("_id");
+    if (!user) {
+      return res
+        .status(404)
+        .json(new ApiResponse(404, null, "Author not found"));
+    }
+    authorId = user._id;
+  }
+
+  const matchStage = {
+    isSuspended: true,
+    ...{ author: new mongoose.Types.ObjectId(userId) },
+  };
+
+  const aggregate = Post.aggregate([
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+      },
+    },
+    { $unwind: "$author" },
+    {
+      $project: {
+        title: 1,
+        content: 1,
+        excerpt: 1,
+        author: { userName: 1, _id: 1 },
+        createdAt: 1,
+        likes: 1,
+        commentCount: 1,
+        isSuspended: 1,
+        suspensionReason: 1,
+      },
+    },
+  ]);
+
+  const options = {
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
+  };
+
+  const result = await Post.aggregatePaginate(aggregate, options);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        posts: result.docs,
+        totalPages: result.totalPages,
+        currentPage: result.page,
+        totalPosts: result.totalDocs,
+      },
+      "Suspended posts retrieved successfully"
     )
   );
 });
@@ -1233,5 +1316,6 @@ export {
   getPendingPosts,
   getPost,
   getPosts,
+  getSuspendedPosts,
   updatePost,
 };

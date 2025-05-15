@@ -371,10 +371,140 @@ const getComments = asyncHandler(async (req, res) => {
   );
 });
 
+const getSuspendedComments = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, query } = req.query;
+  const userId = req.userId; // From verifyJWT middleware
+
+  // Match stage for filtering
+  const matchStage = {
+    isSuspended: true,
+    author: new mongoose.Types.ObjectId(userId),
+    ...(query && { content: { $regex: query, $options: "i" } }),
+  };
+
+  const aggregate = Comment.aggregate([
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+        pipeline: [{ $project: { userName: 1, _id: 1 } }],
+      },
+    },
+    { $unwind: "$author" },
+    {
+      $lookup: {
+        from: "posts",
+        localField: "post",
+        foreignField: "_id",
+        as: "post",
+        pipeline: [{ $project: { title: 1, _id: 1 } }],
+      },
+    },
+    { $unwind: { path: "$post", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "likes",
+        foreignField: "_id",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "likes.likedBy",
+        foreignField: "_id",
+        as: "likeUsers",
+      },
+    },
+    {
+      $addFields: {
+        likes: {
+          $map: {
+            input: "$likes",
+            as: "like",
+            in: {
+              likedBy: {
+                $let: {
+                  vars: {
+                    user: {
+                      $arrayElemAt: [
+                        "$likeUsers",
+                        {
+                          $indexOfArray: ["$likeUsers._id", "$$like.likedBy"],
+                        },
+                      ],
+                    },
+                  },
+                  in: {
+                    _id: "$$user._id",
+                    userName: "$$user.userName",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        content: 1,
+        "author.userName": 1,
+        "author._id": 1,
+        "post.title": 1,
+        "post._id": 1,
+        createdAt: 1,
+        parentComment: 1,
+        replies: 1,
+        isSuspended: 1,
+        suspensionReason: 1,
+        likeCount: { $size: "$likes" },
+        likes: 1,
+      },
+    },
+    {
+      $project: {
+        likeUsers: 0,
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
+
+  const options = {
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
+  };
+
+  const result = await Comment.aggregatePaginate(aggregate, options);
+
+  // Initialize replies array for each comment (for frontend consistency)
+  result.docs.forEach((comment) => {
+    comment.replies = [];
+  });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        comments: result.docs,
+        totalPages: result.totalPages,
+        currentPage: result.page,
+        totalComments: result.totalDocs,
+      },
+      "Suspended comments fetched successfully"
+    )
+  );
+});
+
 export {
   createComment,
   createNestedComment,
   deleteComment,
   getComments,
+  getSuspendedComments,
   updateComment,
 };
