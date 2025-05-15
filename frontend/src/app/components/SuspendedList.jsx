@@ -171,7 +171,7 @@ export default function SuspendedList({ type, isAdmin, userName }) {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     On:{" "}
                     <a
-                      href={`/posts/${item.post}`}
+                      href={`/posts/${item.post?._id}`}
                       className="text-blue-500 hover:underline"
                     >
                       {item.post?.title || "Visit Post"}
@@ -184,7 +184,7 @@ export default function SuspendedList({ type, isAdmin, userName }) {
                     Created: {formatDate(item.createdAt)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Likes: {item.likes || 0}
+                    Likes: {item.likeCount || 0} {/* Fixed: Use likeCount */}
                   </p>
                   {item.parentComment && (
                     <p className="text-sm text-gray-600 dark:text-gray-400">
