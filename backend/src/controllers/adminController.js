@@ -286,9 +286,11 @@ const getSuspendedPosts = asyncHandler(async (req, res) => {
 const getSuspendedComments = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query } = req.query;
 
-  const matchStage = query
-    ? { content: { $regex: query, $options: "i" }, isSuspended: true }
-    : { isSuspended: true };
+  // Match stage for filtering
+  const matchStage = {
+    isSuspended: true,
+    ...(query && { content: { $regex: query, $options: "i" } }),
+  };
 
   const aggregate = Comment.aggregate([
     { $match: matchStage },
@@ -304,6 +306,16 @@ const getSuspendedComments = asyncHandler(async (req, res) => {
     { $unwind: "$author" },
     {
       $lookup: {
+        from: "posts",
+        localField: "post",
+        foreignField: "_id",
+        as: "post",
+        pipeline: [{ $project: { title: 1, _id: 1 } }],
+      },
+    },
+    { $unwind: { path: "$post", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
         from: "likes",
         localField: "likes",
         foreignField: "_id",
@@ -311,16 +323,62 @@ const getSuspendedComments = asyncHandler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "users",
+        localField: "likes.likedBy",
+        foreignField: "_id",
+        as: "likeUsers",
+      },
+    },
+    {
+      $addFields: {
+        likes: {
+          $map: {
+            input: "$likes",
+            as: "like",
+            in: {
+              likedBy: {
+                $let: {
+                  vars: {
+                    user: {
+                      $arrayElemAt: [
+                        "$likeUsers",
+                        {
+                          $indexOfArray: ["$likeUsers._id", "$$like.likedBy"],
+                        },
+                      ],
+                    },
+                  },
+                  in: {
+                    _id: "$$user._id",
+                    userName: "$$user.userName",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
       $project: {
         content: 1,
         "author.userName": 1,
         "author._id": 1,
+        "post.title": 1,
+        "post._id": 1,
         createdAt: 1,
-        post: 1,
         parentComment: 1,
         replies: 1,
         isSuspended: 1,
+        suspensionReason: 1,
         likeCount: { $size: "$likes" },
+        likes: 1,
+      },
+    },
+    {
+      $project: {
+        likeUsers: 0,
       },
     },
     { $sort: { createdAt: -1 } },
@@ -333,6 +391,7 @@ const getSuspendedComments = asyncHandler(async (req, res) => {
 
   const result = await Comment.aggregatePaginate(aggregate, options);
 
+  // Initialize replies array for each comment (for frontend consistency)
   result.docs.forEach((comment) => {
     comment.replies = [];
   });
