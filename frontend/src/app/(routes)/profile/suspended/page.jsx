@@ -81,7 +81,7 @@ export default function Suspended() {
         <SuspendedList
           type={tab}
           isAdmin={user.role === "admin"}
-          userId={user._id}
+          userName={user.userName}
         />
       </div>
     </div>

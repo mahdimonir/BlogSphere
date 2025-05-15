@@ -8,7 +8,7 @@ import { capitalizeFirstLetter, formatDate } from "../configs/constants";
 import Error from "./Error";
 import Loading from "./Loading";
 
-export default function SuspendedList({ type, isAdmin, userId }) {
+export default function SuspendedList({ type, isAdmin, userName }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,10 +34,10 @@ export default function SuspendedList({ type, isAdmin, userId }) {
         setLoading(false);
       }
     };
-    if (userId || isAdmin) {
+    if (userName || isAdmin) {
       fetchItems();
     }
-  }, [type, isAdmin, userId]);
+  }, [type, isAdmin, userName]);
 
   const handleToggleSuspend = async (id, userName) => {
     if (!isAdmin) return;

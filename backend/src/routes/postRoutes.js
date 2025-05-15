@@ -6,6 +6,7 @@ import {
   getPendingPosts,
   getPost,
   getPosts,
+  getSuspendedPosts,
   updatePost,
 } from "../controllers/postController.js";
 import { verifyJWT } from "../middleware/authMiddleware.js";
@@ -13,7 +14,11 @@ import { verifyJWT } from "../middleware/authMiddleware.js";
 const router = Router();
 
 // Post routes
-router.route("/").get(getPosts).post(verifyJWT, createPost);
+router
+  .route("/")
+  .get(getPosts)
+  .get(verifyJWT, getSuspendedPosts)
+  .post(verifyJWT, createPost);
 router.route("/my").get(verifyJWT, getMyPosts);
 router.route("/pending").get(verifyJWT, getPendingPosts);
 router
