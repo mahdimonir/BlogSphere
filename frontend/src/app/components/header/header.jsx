@@ -26,7 +26,7 @@ const useClickOutside = (callback) => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (ref.current && !ref.current.contains(event.target)) {
-        callbackRef();
+        setTimeout(() => callback(), 100);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -114,6 +114,10 @@ const UserActions = ({ user, logout, authLoading, model, onClick }) => {
   return user ? (
     <button
       onClick={() => {
+        logout();
+        if (onClick) onClick();
+      }}
+      onTouchStart={() => {
         logout();
         if (onClick) onClick();
       }}

@@ -119,17 +119,23 @@ export default function UserCard({ user, onClick, compact = false }) {
       <section className="flex items-center gap-3">
         <Link href={`/users/${userName}`} onClick={onClick}>
           {secureAvatarUrl ? (
-            <Image
-              src={secureAvatarUrl}
-              alt={`${userName}'s avatar`}
-              width={compact ? 40 : 64}
-              height={compact ? 40 : 64}
-              className="rounded-full border border-gray-200 dark:border-gray-700 object-cover"
-              unoptimized
-              onError={(e) => {
-                e.target.src = Demo_Image;
-              }}
-            />
+            <div
+              className={`${
+                compact ? "w-10 h-10" : "w-16 h-16"
+              } rounded-full overflow-hidden border border-gray-200 dark:border-gray-700`}
+            >
+              <Image
+                src={secureAvatarUrl}
+                alt={`${userName}'s avatar`}
+                width={compact ? 40 : 64}
+                height={compact ? 40 : 64}
+                className="object-cover w-full h-full"
+                unoptimized
+                onError={(e) => {
+                  e.target.src = Demo_Image;
+                }}
+              />
+            </div>
           ) : (
             <div
               className={`${
@@ -148,7 +154,11 @@ export default function UserCard({ user, onClick, compact = false }) {
                 <span className="text-red-500 text-xs"> (Suspended)</span>
               )}
             </h3>
-            <p className={`text-gray-600 dark:text-gray-400 ${compact ? "text-xs" : "text-sm"}`}>
+            <p
+              className={`text-gray-600 dark:text-gray-400 ${
+                compact ? "text-xs" : "text-sm"
+              }`}
+            >
               @{capitalizeFirstLetter(userName)}
             </p>
           </Link>
@@ -186,11 +196,15 @@ export default function UserCard({ user, onClick, compact = false }) {
 
             <div className="flex justify-center gap-4 mb-4 text-sm text-gray-600 dark:text-gray-400">
               <span>
-                <strong>{Array.isArray(followers) ? followers.length : 0}</strong>{" "}
+                <strong>
+                  {Array.isArray(followers) ? followers.length : 0}
+                </strong>{" "}
                 Followers
               </span>
               <span>
-                <strong>{Array.isArray(following) ? following.length : 0}</strong>{" "}
+                <strong>
+                  {Array.isArray(following) ? following.length : 0}
+                </strong>{" "}
                 Following
               </span>
             </div>
@@ -209,42 +223,50 @@ export default function UserCard({ user, onClick, compact = false }) {
                 View Profile
               </Link>
 
-              {!authLoading && currentUser && currentUser.userName !== userName && (
-                <button
-                  onClick={handleFollow}
-                  disabled={isFollowLoading}
-                  className={`px-4 py-2 rounded-full text-sm flex items-center justify-center gap-2 ${
-                    isFollowing
-                      ? "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600"
-                      : "bg-blue-500 text-white hover:bg-blue-600"
-                  } ${isFollowLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-                  aria-label={
-                    isFollowing ? `Unfollow ${userName}` : `Follow ${userName}`
-                  }
-                >
-                  {isFollowLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : isFollowing ? (
-                    <>
-                      <UserMinus className="h-4 w-4" /> Unfollow
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="h-4 w-4" /> Follow
-                    </>
-                  )}
-                </button>
-              )}
+              {!authLoading &&
+                currentUser &&
+                currentUser.userName !== userName && (
+                  <button
+                    onClick={handleFollow}
+                    disabled={isFollowLoading}
+                    className={`px-4 py-2 rounded-full text-sm flex items-center justify-center gap-2 ${
+                      isFollowing
+                        ? "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600"
+                        : "bg-blue-500 text-white hover:bg-blue-600"
+                    } ${
+                      isFollowLoading ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    aria-label={
+                      isFollowing
+                        ? `Unfollow ${userName}`
+                        : `Follow ${userName}`
+                    }
+                  >
+                    {isFollowLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isFollowing ? (
+                      <>
+                        <UserMinus className="h-4 w-4" /> Unfollow
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4" /> Follow
+                      </>
+                    )}
+                  </button>
+                )}
 
-              {!authLoading && currentUser && currentUser.userName === userName && (
-                <Link
-                  href="/profile/edit"
-                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-sm flex items-center justify-center gap-2 transition-colors"
-                  aria-label="Edit your profile"
-                >
-                  <Edit className="h-4 w-4" /> Edit Profile
-                </Link>
-              )}
+              {!authLoading &&
+                currentUser &&
+                currentUser.userName === userName && (
+                  <Link
+                    href="/profile/edit"
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-sm flex items-center justify-center gap-2 transition-colors"
+                    aria-label="Edit your profile"
+                  >
+                    <Edit className="h-4 w-4" /> Edit Profile
+                  </Link>
+                )}
 
               {!authLoading &&
                 currentUser &&
@@ -259,7 +281,9 @@ export default function UserCard({ user, onClick, compact = false }) {
                         : "bg-red-500 text-white hover:bg-red-600"
                     } ${suspending ? "opacity-50 cursor-not-allowed" : ""}`}
                     aria-label={
-                      isSuspended ? `Unsuspend ${userName}` : `Suspend ${userName}`
+                      isSuspended
+                        ? `Unsuspend ${userName}`
+                        : `Suspend ${userName}`
                     }
                   >
                     {suspending ? (
