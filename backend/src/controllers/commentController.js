@@ -32,23 +32,14 @@ const createCommentDocument = async ({
   });
   await comment.save();
 
-  await comment
-    .populate({
-      path: "author",
-      select: "userName avatar",
-    })
-    .populate({
-      path: "parentComment",
-      select: "content",
-    })
-    .populate({
-      path: "post",
-      select: "title",
-    });
+  // Fetch with populate using findById
+  const populatedComment = await Comment.findById(comment._id)
+    .populate({ path: "author", select: "userName avatar" })
+    .populate({ path: "parentComment", select: "content" })
+    .populate({ path: "post", select: "title" });
 
-  // Initialize fields expected by frontend
   return {
-    ...comment.toObject(),
+    ...populatedComment.toObject(),
     replies: [],
     likeCount: 0,
     likes: [],
@@ -56,7 +47,6 @@ const createCommentDocument = async ({
     isSuspended: false,
   };
 };
-
 // Create a top-level comment
 const createComment = asyncHandler(async (req, res) => {
   const { postId, content } = req.body;
