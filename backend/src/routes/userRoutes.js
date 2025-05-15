@@ -18,6 +18,6 @@ router.route("/:userName").get(getSingleUser);
 router.route("/follow").post(verifyJWT, followUser);
 
 // Suspended Posts and Comments
-router.route("/suspend/posts").get(verifyJWT, getSuspendedPosts);
-router.route("/suspend/comments").get(verifyJWT, getSuspendedComments);
+router.route("/suspended/posts").get(verifyJWT, getSuspendedPosts);
+router.route("/suspended/comments").get(verifyJWT, getSuspendedComments);
 export default router;
