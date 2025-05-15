@@ -1,4 +1,9 @@
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import { Comment } from "../models/commentModel.js";
+import { Like } from "../models/likeModel.js";
+import { Notification } from "../models/notificationModel.js";
+import { Post } from "../models/postModel.js";
 import { User } from "../models/userModel.js";
 import {
   ApiError,
@@ -15,7 +20,6 @@ import {
 import { generateOtp, generateUsername } from "../utils/randomGenerator.js";
 import { sendEmail } from "../utils/sendMail/index.js";
 import { throwIf } from "../utils/throwIf.js";
-
 // Create access token
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -445,24 +449,158 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 });
 
 // Delete user
+// const deleteUser = asyncHandler(async (req, res) => {
+//   const user = await User.findById(req.userId);
+//   throwIf(!user, new NotFoundError("User not found"));
+
+//   if (user.avatar) {
+//     const deleteResult = await deleteFileFromCloudinary(user.avatar);
+//   }
+
+//   const deletedUser = await User.findByIdAndDelete(req.userId).select(
+//     "-password -refreshToken"
+//   );
+//   throwIf(!deletedUser, new NotFoundError("User not found"));
+
+//   return res
+//     .status(200)
+//     .json(new ApiResponse(200, deletedUser, "User deleted successfully"));
+// });
+
 const deleteUser = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.userId);
-  throwIf(!user, new NotFoundError("User not found"));
+  const userId = req.userId;
 
-  if (user.avatar) {
-    const deleteResult = await deleteFileFromCloudinary(user.avatar);
+  // Start a MongoDB session for transaction
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Find the user
+    const user = await User.findById(userId).session(session);
+    throwIf(!user, new NotFoundError("User not found"));
+
+    // 1. Delete user's avatar from Cloudinary if it exists
+    if (user.avatar) {
+      await deleteFileFromCloudinary(user.avatar);
+    }
+
+    // 2. Delete all posts by the user and associated data
+    const userPosts = await Post.find({ author: userId }).session(session);
+    for (const post of userPosts) {
+      // Delete post image from Cloudinary if it exists
+      if (post.image) {
+        await deleteFileFromCloudinary(post.image);
+      }
+
+      // Delete all comments on the post
+      await Comment.deleteMany({ post: post._id }).session(session);
+
+      // Delete all likes on the post
+      await Like.deleteMany({ post: post._id }).session(session);
+
+      // Delete the post itself
+      await Post.findByIdAndDelete(post._id).session(session);
+    }
+
+    // 3. Delete all comments by the user (including on other users' posts)
+    const userComments = await Comment.find({ author: userId }).session(
+      session
+    );
+    for (const comment of userComments) {
+      // Update the parent comment or post to remove this comment
+      if (comment.parentComment) {
+        await Comment.findByIdAndUpdate(
+          comment.parentComment,
+          { $pull: { replies: comment._id } },
+          { session }
+        );
+      } else {
+        await Post.findByIdAndUpdate(
+          comment.post,
+          {
+            $pull: { comments: comment._id },
+            $inc: { commentCount: -1 },
+          },
+          { session }
+        );
+      }
+
+      // Delete likes on this comment
+      await Like.deleteMany({ comment: comment._id }).session(session);
+
+      // Delete the comment
+      await Comment.findByIdAndDelete(comment._id).session(session);
+    }
+
+    // 4. Delete all likes by the user (on posts and comments)
+    const userLikes = await Like.find({ likedBy: userId }).session(session);
+    for (const like of userLikes) {
+      if (like.post) {
+        await Post.findByIdAndUpdate(
+          like.post,
+          { $pull: { likes: like._id } },
+          { session }
+        );
+      } else if (like.comment) {
+        await Comment.findByIdAndUpdate(
+          like.comment,
+          { $pull: { likes: like._id } },
+          { session }
+        );
+      }
+      await Like.findByIdAndDelete(like._id).session(session);
+    }
+
+    // 5. Remove user from followers and following lists
+    // Remove user from others' followers lists
+    await User.updateMany(
+      { following: { $elemMatch: { _id: userId } } },
+      { $pull: { following: { _id: userId } } },
+      { session }
+    );
+
+    // Remove user from others' following lists
+    await User.updateMany(
+      { followers: { $elemMatch: { _id: userId } } },
+      { $pull: { followers: { _id: userId } } },
+      { session }
+    );
+
+    // 6. Delete all notifications related to the user
+    await Notification.deleteMany({
+      $or: [
+        { user: userId }, // Notifications received by the user
+        { "data.userId": userId }, // Notifications triggered by the user (if your notification model stores userId in data)
+      ],
+    }).session(session);
+
+    // 7. Delete the user
+    await User.findByIdAndDelete(userId).session(session);
+
+    // Commit the transaction
+    await session.commitTransaction();
+
+    // Clear cookies and return response
+    return res
+      .status(200)
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
+      .json(
+        new ApiResponse(
+          200,
+          null,
+          "User and all associated data deleted successfully"
+        )
+      );
+  } catch (error) {
+    // Rollback the transaction on error
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    // End the session
+    session.endSession();
   }
-
-  const deletedUser = await User.findByIdAndDelete(req.userId).select(
-    "-password -refreshToken"
-  );
-  throwIf(!deletedUser, new NotFoundError("User not found"));
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, deletedUser, "User deleted successfully"));
 });
-
 // Export all controllers
 export {
   deleteUser,
