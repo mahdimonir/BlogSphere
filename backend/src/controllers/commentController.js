@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { Comment } from "../models/commentModel.js";
-import { Like } from "../models/likeModel.js";
 import { Post } from "../models/postModel.js";
+import { User } from "../models/userModel.js";
 import {
   ForbiddenError,
   NotFoundError,
@@ -9,376 +9,286 @@ import {
 } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { createNotification } from "../utils/notificationHelper.js";
 import { throwIf } from "../utils/throwIf.js";
 
-// Utility function for shared comment creation logic
-const createCommentDocument = async ({
-  content,
-  postId,
-  authorId,
-  parentCommentId,
-}) => {
+// Utility function to toggle suspension
+const toggleSuspension = async (
+  Model,
+  identifier,
+  entityName,
+  select = "",
+  isId = true
+) => {
   throwIf(
-    !content || content.trim() === "",
-    new ValidationError("Content is required")
+    !identifier,
+    new ValidationError(`${entityName} identifier is required`)
   );
 
-  const comment = new Comment({
-    content: content.trim(),
-    post: postId,
-    author: authorId,
-    parentComment: parentCommentId || null,
-  });
-  await comment.save();
+  let entity;
+  if (isId) {
+    throwIf(
+      !mongoose.Types.ObjectId.isValid(identifier),
+      new ValidationError(`Invalid ${entityName} ID: ${identifier}`)
+    );
+    entity = await Model.findById(identifier).select(select);
+  } else {
+    throwIf(
+      typeof identifier !== "string" || identifier.trim() === "",
+      new ValidationError(`Invalid ${entityName} userName: ${identifier}`)
+    );
+    entity = await Model.findOne({ userName: identifier }).select(select);
+  }
 
-  // Fetch with populate using findById
-  const populatedComment = await Comment.findById(comment._id)
-    .populate({ path: "author", select: "userName avatar" })
-    .populate({ path: "parentComment", select: "content" })
-    .populate({ path: "post", select: "title" });
+  throwIf(!entity, new NotFoundError(`${entityName} not found`));
+
+  entity.isSuspended = !entity.isSuspended; // Toggle boolean (true/false)
+  await entity.save();
 
   return {
-    ...populatedComment.toObject(),
-    replies: [],
-    likeCount: 0,
-    likes: [],
-    isLiked: false,
-    isSuspended: false,
+    entity: {
+      ...entity.toObject(),
+      isSuspended: entity.isSuspended, // Explicitly include isSuspended
+    },
+    message: `${entityName} ${
+      entity.isSuspended ? "suspended" : "unsuspended"
+    } successfully`,
   };
 };
-// Create a top-level comment
-const createComment = asyncHandler(async (req, res) => {
-  const { postId, content } = req.body;
-  const userId = req.userId;
 
-  throwIf(!postId, new ValidationError("Post ID is required"));
+// Toggle user suspension - admin only
+const toggleUserSuspension = asyncHandler(async (req, res) => {
+  const { userName } = req.params;
+  const currentUser = req.user;
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const post = await Post.findById(postId)
-      .populate("author", "userName")
-      .session(session);
-    throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
-
-    const comment = await createCommentDocument({
-      content,
-      postId,
-      authorId: userId,
-    });
-
-    await Post.findByIdAndUpdate(
-      postId,
-      {
-        $push: { comments: comment._id },
-        $inc: { commentCount: 1 },
-      },
-      { session }
-    );
-
-    // Notify post author if not the commenter
-    if (post.author._id.toString() !== userId) {
-      await createNotification({
-        userId: post.author._id,
-        message: `${req.user.userName} commented on your post: ${post.title}`,
-        type: "comment",
-        link: `/posts/${post._id}`,
-      });
-    }
-
-    await session.commitTransaction();
-    return res
-      .status(201)
-      .json(new ApiResponse(201, comment, "Comment added successfully"));
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-});
-
-// Create a nested comment (reply)
-const createNestedComment = asyncHandler(async (req, res) => {
-  const { parentCommentId, content } = req.body;
-  const userId = req.userId;
-
+  throwIf(!currentUser, new NotFoundError("Current user not found"));
   throwIf(
-    !parentCommentId,
-    new ValidationError("Parent comment ID is required")
+    currentUser.role !== "admin",
+    new ForbiddenError("Only admins can suspend users")
+  );
+  throwIf(
+    currentUser.userName === userName,
+    new ValidationError("Cannot suspend yourself")
   );
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const parentComment = await Comment.findById(parentCommentId)
-      .populate("author", "userName")
-      .session(session);
-    throwIf(
-      !parentComment || parentComment.isSuspended,
-      new NotFoundError("Parent comment not found")
-    );
-
-    const postId = parentComment.post;
-    const post = await Post.findById(postId)
-      .populate("author", "userName")
-      .session(session);
-    throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
-
-    let depth = 0;
-    let current = parentComment;
-    while (current && current.parentComment) {
-      depth++;
-      if (depth > 5) {
-        throw new ValidationError("Maximum reply depth exceeded");
-      }
-      current = await Comment.findById(current.parentComment).session(session);
-    }
-
-    const comment = await createCommentDocument({
-      content,
-      postId,
-      authorId: userId,
-      parentCommentId,
-    });
-
-    await Comment.findByIdAndUpdate(
-      parentCommentId,
-      { $push: { replies: comment._id } },
-      { session }
-    );
-
-    await Post.findByIdAndUpdate(
-      postId,
-      { $inc: { commentCount: 1 } },
-      { session }
-    );
-
-    // Notify parent comment author if not the replier
-    if (parentComment.author._id.toString() !== userId) {
-      await createNotification({
-        userId: parentComment.author._id,
-        message: `${req.user.userName} replied to your comment on: ${post.title}`,
-        type: "comment",
-        link: `/posts/${post._id}`,
-      });
-    }
-
-    await session.commitTransaction();
-    return res
-      .status(201)
-      .json(new ApiResponse(201, comment, "Reply added successfully"));
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-});
-
-// Update a comment
-const updateComment = asyncHandler(async (req, res) => {
-  const { commentId, content } = req.body;
-  const userId = req.userId;
-
-  throwIf(!commentId, new ValidationError("Comment ID is required"));
-  throwIf(
-    !content || content.trim() === "",
-    new ValidationError("Content is required")
+  const { entity, message } = await toggleSuspension(
+    User,
+    userName,
+    "User",
+    "-password",
+    false
   );
 
-  const comment = await Comment.findById(commentId);
-  throwIf(
-    !comment || comment.isSuspended,
-    new NotFoundError("Comment not found")
-  );
-
-  throwIf(
-    comment.author._id.toString() !== userId.toString(),
-    new ForbiddenError("You are not authorized to update this comment")
-  );
-
-  comment.content = content.trim();
-  await comment.save();
-
-  await comment.populate({ path: "author", select: "userName avatar" });
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, comment, "Comment updated successfully"));
+  return res.status(200).json(new ApiResponse(200, entity, message));
 });
 
-// Delete a comment (and its replies recursively)
-const deleteComment = asyncHandler(async (req, res) => {
-  const { commentId } = req.params;
-
-  throwIf(!commentId, new ValidationError("Comment ID is required"));
-
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const comment = await Comment.findById(commentId).session(session);
-    throwIf(
-      !comment || comment.isSuspended,
-      new NotFoundError("Comment not found")
-    );
-
-    throwIf(
-      comment.author._id.toString() !== req.userId.toString(),
-      new ForbiddenError("You are not authorized to delete this comment")
-    );
-
-    // Delete replies recursively
-    const deleteReplies = async (commentId) => {
-      const comment = await Comment.findById(commentId)
-        .select("replies")
-        .session(session);
-      if (!comment || !comment.replies.length) return;
-
-      for (const replyId of comment.replies) {
-        await deleteReplies(replyId);
-        await Comment.findByIdAndDelete(replyId, { session });
-        await Like.deleteMany({ comment: replyId }, { session });
-        await Post.findByIdAndUpdate(
-          comment.post,
-          { $inc: { commentCount: -1 } },
-          { session }
-        );
-      }
-    };
-
-    await deleteReplies(commentId);
-
-    await Like.deleteMany({ comment: commentId }, { session });
-
-    if (!comment.parentComment) {
-      await Post.findByIdAndUpdate(
-        comment.post,
-        {
-          $pull: { comments: commentId },
-          $inc: { commentCount: -1 },
-        },
-        { session }
-      );
-    } else {
-      await Comment.findByIdAndUpdate(
-        comment.parentComment,
-        { $pull: { replies: commentId } },
-        { session }
-      );
-    }
-
-    await Comment.findByIdAndDelete(commentId, { session });
-
-    await session.commitTransaction();
-    return res
-      .status(200)
-      .json(new ApiResponse(200, null, "Comment deleted successfully"));
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-});
-
-// Get comments for a post with multi-level nested replies and pagination
-const getComments = asyncHandler(async (req, res) => {
+// Toggle post suspension - admin only
+const togglePostSuspension = asyncHandler(async (req, res) => {
   const { postId } = req.params;
-  const { page = 1, limit = 10 } = req.query;
-  const userId = req.userId;
+  const { entity, message } = await toggleSuspension(Post, postId, "Post");
 
-  const post = await Post.findById(postId);
-  throwIf(!post || post.isSuspended, new NotFoundError("Post not found"));
+  return res.status(200).json(new ApiResponse(200, entity, message));
+});
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
-  const comments = await Comment.find({
-    post: postId,
-    isSuspended: false,
-    parentComment: null, // Only top-level comments
-  })
-    .populate("author", "userName avatar")
-    .populate({
-      path: "likes",
-      select: "likedBy",
-    })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit))
-    .lean();
+// Toggle comment suspension - admin only
+const toggleCommentSuspension = asyncHandler(async (req, res) => {
+  const { commentId } = req.params;
+  const { entity, message } = await toggleSuspension(
+    Comment,
+    commentId,
+    "Comment"
+  );
 
-  // Recursively fetch replies
-  const fetchReplies = async (comment) => {
-    if (!comment.replies || !comment.replies.length) return [];
+  return res.status(200).json(new ApiResponse(200, entity, message));
+});
 
-    const replies = await Comment.find({
-      _id: { $in: comment.replies },
-      isSuspended: false,
-    })
-      .populate("author", "userName avatar")
-      .populate({
-        path: "likes",
-        select: "likedBy",
-      })
-      .lean();
+// Get suspended users
+const getSuspendedUsers = asyncHandler(async (req, res) => {
+  const { query, page = 1, limit = 10 } = req.query;
 
-    for (const reply of replies) {
-      reply.replies = await fetchReplies(reply);
-      reply.likeCount = reply.likes.length;
-      reply.isLiked = reply.likes.some(
-        (like) => like.likedBy.toString() === userId
-      );
-      delete reply.likes;
-    }
+  const matchStage = query
+    ? {
+        isSuspended: true,
+        $or: [
+          { name: { $regex: query, $options: "i" } },
+          { email: { $regex: query, $options: "i" } },
+          { userName: { $regex: query, $options: "i" } },
+        ],
+      }
+    : { isSuspended: true };
 
-    return replies;
+  const aggregate = User.aggregate([
+    { $match: matchStage },
+    { $project: { password: 0 } },
+    { $sort: { createdAt: -1 } },
+  ]);
+
+  const options = {
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
   };
 
-  // Build comment tree with like status
-  const commentTree = [];
-  for (const comment of comments) {
-    comment.replies = await fetchReplies(comment);
-    comment.likeCount = comment.likes.length;
-    comment.isLiked = comment.likes.some(
-      (like) => like.likedBy.toString() === userId
-    );
-    delete comment.likes;
-    commentTree.push(comment);
-  }
+  const result = await User.aggregatePaginate(aggregate, options);
 
-  const totalComments = await Comment.countDocuments({
-    post: postId,
-    isSuspended: false,
-    parentComment: null,
-  });
-
-  return res.json(
+  return res.status(200).json(
     new ApiResponse(
       200,
       {
-        comments: commentTree,
-        totalComments,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(totalComments / parseInt(limit)),
+        users: result.docs,
+        totalPages: result.totalPages,
+        currentPage: result.page,
+        totalUsers: result.totalDocs,
       },
-      "Comments fetched successfully"
+      "Suspended users fetched successfully"
     )
   );
 });
 
+// Get suspended posts
+const getSuspendedPosts = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, search } = req.query;
+
+  const matchStage = search
+    ? { title: { $regex: search, $options: "i" }, isSuspended: true }
+    : { isSuspended: true };
+
+  const aggregate = Post.aggregate([
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+        pipeline: [{ $project: { userName: 1, _id: 1 } }],
+      },
+    },
+    { $unwind: "$author" },
+    {
+      $lookup: {
+        from: "comments",
+        let: { postId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ["$post", "$$postId"] },
+            },
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "author",
+              foreignField: "_id",
+              as: "author",
+              pipeline: [{ $project: { userName: 1, _id: 1 } }],
+            },
+          },
+          { $unwind: "$author" },
+          {
+            $lookup: {
+              from: "likes",
+              localField: "likes",
+              foreignField: "_id",
+              as: "likes",
+            },
+          },
+          {
+            $project: {
+              content: 1,
+              "author.userName": 1,
+              "author._id": 1,
+              createdAt: 1,
+              parentComment: 1,
+              isSuspended: 1,
+              replies: 1,
+              likeCount: { $size: "$likes" },
+            },
+          },
+        ],
+        as: "comments",
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "likes",
+        foreignField: "_id",
+        as: "likes",
+      },
+    },
+    {
+      $project: {
+        title: 1,
+        content: 1,
+        image: 1,
+        catagory: 1,
+        tags: 1,
+        status: 1,
+        createdAt: 1,
+        isSuspended: 1,
+        "author.userName": 1,
+        "author._id": 1,
+        likeCount: { $size: "$likes" },
+        commentCount: { $size: "$comments" },
+        comments: 1,
+      },
+    },
+    { $sort: { createdAt: -1 } },
+  ]);
+
+  const options = {
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
+  };
+
+  const result = await Post.aggregatePaginate(aggregate, options);
+
+  // Build comment tree for each post
+  result.docs.forEach((post) => {
+    const commentMap = {};
+    const topLevelComments = [];
+
+    post.comments.forEach((comment) => {
+      comment.replies = [];
+      commentMap[comment._id.toString()] = comment;
+    });
+
+    post.comments.forEach((comment) => {
+      if (!comment.parentComment) {
+        topLevelComments.push(comment);
+      } else {
+        const parentId = comment.parentComment.toString();
+        if (commentMap[parentId]) {
+          commentMap[parentId].replies.push(comment);
+        } else {
+          topLevelComments.push(comment);
+        }
+      }
+    });
+
+    post.comments = topLevelComments;
+  });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        posts: result.docs,
+        totalPages: result.totalPages,
+        currentPage: result.page,
+        totalPosts: result.totalDocs,
+      },
+      "Suspended posts retrieved successfully"
+    )
+  );
+});
+
+// Get suspended comments
 const getSuspendedComments = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query } = req.query;
-  const userId = req.userId; // From verifyJWT middleware
 
   // Match stage for filtering
   const matchStage = {
     isSuspended: true,
-    author: new mongoose.Types.ObjectId(userId),
     ...(query && { content: { $regex: query, $options: "i" } }),
   };
 
@@ -501,10 +411,10 @@ const getSuspendedComments = asyncHandler(async (req, res) => {
 });
 
 export {
-  createComment,
-  createNestedComment,
-  deleteComment,
-  getComments,
   getSuspendedComments,
-  updateComment,
+  getSuspendedPosts,
+  getSuspendedUsers,
+  toggleCommentSuspension,
+  togglePostSuspension,
+  toggleUserSuspension,
 };
