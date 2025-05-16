@@ -103,7 +103,6 @@ export default function PostForm({ postId = null, initialData = null }) {
     "Travel",
     "Lifestyle",
     "Art",
-    "Trending",
   ];
 
   const handleImageChange = (e) => {
@@ -147,7 +146,6 @@ export default function PostForm({ postId = null, initialData = null }) {
     }
 
     setIsSubmitting(true);
-    console.log("Form data:", data);
     try {
       const postData = new FormData();
       postData.append("title", data.title);
@@ -156,7 +154,6 @@ export default function PostForm({ postId = null, initialData = null }) {
       const cleanTags = data.tags
         .map((tag) => String(tag).trim())
         .filter((tag) => tag);
-      console.log("Submitting tags:", cleanTags);
       postData.append("tags", JSON.stringify(cleanTags));
       if (data.image) {
         postData.append("image", data.image);
@@ -170,12 +167,15 @@ export default function PostForm({ postId = null, initialData = null }) {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      console.log("Backend response:", response.data);
       if (response.status === (isEditMode ? 200 : 201)) {
         toast.success(
           `Post ${isEditMode ? "updated" : "created"} successfully`
         );
-        router.push(`/posts/${postId}`);
+        const newPostId = isEditMode ? postId : response.data.data._id;
+        if (!newPostId) {
+          throw new Error("Post ID not found in response");
+        }
+        router.push(`/posts/${newPostId}`);
       }
     } catch (error) {
       console.error(`Error ${postId ? "updating" : "creating"} post:`, error);

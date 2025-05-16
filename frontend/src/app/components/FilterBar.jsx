@@ -5,6 +5,7 @@ export default function FilterBar({
   setActiveCategory,
   sortBy,
   setSortBy,
+  user, // Add user prop
 }) {
   const categories = [
     "All",
@@ -16,7 +17,10 @@ export default function FilterBar({
     "Trending",
   ];
 
-  const sortOptions = ["Newest", "Oldest", "Most Liked", "Most Commented"];
+  // Conditionally include "Pending" sort option if user is authenticated
+  const sortOptions = user
+    ? ["Newest", "Oldest", "Most Liked", "Most Commented", "Pending"]
+    : ["Newest", "Oldest", "Most Liked", "Most Commented"];
 
   return (
     <div className="flex flex-col lg:flex-row justify-between mb-6 gap-4">
