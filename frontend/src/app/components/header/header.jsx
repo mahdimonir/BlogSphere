@@ -23,23 +23,26 @@ const useClickOutside = (callback) => {
   const ref = useRef(null);
 
   useEffect(() => {
-    let called = false;
     const handleClickOutside = (event) => {
       if (ref.current && !ref.current.contains(event.target)) {
-        if (!called) {
-          called = true;
-          setTimeout(() => {
-            callback();
-            called = false;
-          }, 100);
-        }
+        callback();
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("touchstart", handleClickOutside);
+
+    document.addEventListener("mousedown", handleClickOutside, {
+      capture: true,
+    });
+    document.addEventListener("touchstart", handleClickOutside, {
+      capture: true,
+    });
+
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside, {
+        capture: true,
+      });
+      document.removeEventListener("touchstart", handleClickOutside, {
+        capture: true,
+      });
     };
   }, [callback]);
 
@@ -158,6 +161,10 @@ const UserSection = ({
   model,
   isMobile,
   setError,
+  loadingMore,
+  hasNextPage,
+  loadMoreNotifications,
+  totalDocs,
 }) => {
   if (authLoading || (model && isMobile)) return null;
   if (!user) return null;
@@ -171,35 +178,40 @@ const UserSection = ({
           aria-expanded={notificationOpen}
         >
           <Bell className="h-5 w-5 text-gray-900 dark:text-gray-100" />
-          {notifications.filter((n) => !n.isRead).length > 0 && (
+          {totalDocs > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-              {notifications.filter((n) => !n.isRead).length}
+              {totalDocs > 99 ? "99+" : totalDocs}
             </span>
           )}
         </button>
         {notificationOpen && (
           <div className="absolute top-full right-0 md:left-1/2 md:-translate-x-1/2 mt-3 w-64 bg-white dark:bg-gray-900 shadow-lg rounded-lg z-50 max-h-[300px] overflow-y-auto">
-            {notifications.length === 0 ? (
+            {notifications.length === 0 && !loadingMore ? (
               <div className="p-4 text-center text-gray-600 dark:text-gray-300">
                 No notifications
               </div>
             ) : (
               <div className="p-4">
                 <div className="flex justify-between mb-2">
-                  <button
-                    onClick={markAllNotificationsAsRead}
-                    className="text-xs text-blue-500 hover:text-blue-600"
-                    aria-label="Mark all notifications as read"
-                  >
-                    Mark all as read
-                  </button>
-                  <button
-                    onClick={deleteAllNotifications}
-                    className="text-xs text-red-500 hover:text-red-600"
-                    aria-label="Delete all notifications"
-                  >
-                    Delete all
-                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {notifications.length} of {totalDocs} notifications
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={markAllNotificationsAsRead}
+                      className="text-xs text-blue-500 hover:text-blue-600"
+                      aria-label="Mark all notifications as read"
+                    >
+                      Mark all as read
+                    </button>
+                    <button
+                      onClick={deleteAllNotifications}
+                      className="text-xs text-red-500 hover:text-red-600"
+                      aria-label="Delete all notifications"
+                    >
+                      Delete all
+                    </button>
+                  </div>
                 </div>
                 {notifications.map((notification) => (
                   <div
@@ -241,6 +253,27 @@ const UserSection = ({
                     </div>
                   </div>
                 ))}
+                {loadingMore && (
+                  <div className="p-2 text-center text-gray-600 dark:text-gray-300">
+                    <Loading />
+                  </div>
+                )}
+                {!loadingMore && hasNextPage && (
+                  <div className="p-2 text-center">
+                    <button
+                      onClick={loadMoreNotifications}
+                      className="text-xs text-blue-500 hover:text-blue-600"
+                      aria-label="Load more notifications"
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
+                {!loadingMore && !hasNextPage && notifications.length > 0 && (
+                  <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                    No more notifications
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -284,6 +317,10 @@ export default function Header() {
   const [model, setModel] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [focusedResult, setFocusedResult] = useState(null);
+  const [notificationPage, setNotificationPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalDocs, setTotalDocs] = useState(0);
   const searchCache = useRef(new Map());
   const abortControllerRef = useRef(null);
 
@@ -401,26 +438,77 @@ export default function Header() {
     };
   }, [debounceQuery]);
 
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user) {
-        setNotifications([]);
+  const fetchNotifications = useCallback(
+    async (page = 1, append = false) => {
+      if (!user || (!hasNextPage && append) || loadingMore) {
         return;
       }
 
+      setLoadingMore(append);
       try {
         const response = await axiosInstance.get("/notifications", {
-          params: { page: 1, limit: 10 },
+          params: { page, limit: 10 },
         });
-        setNotifications(response.data.data.notifications || []);
+        const {
+          notifications: newNotifications,
+          hasNextPage: apiHasNextPage,
+          totalDocs,
+        } = response.data.data;
+        console.log("Notifications API response:", {
+          page,
+          notifications: newNotifications.length,
+          hasNextPage: apiHasNextPage,
+          totalDocs,
+        });
+        setNotifications((prev) => {
+          const updated = append
+            ? [...prev, ...newNotifications]
+            : newNotifications;
+          console.log("Updated notifications:", updated);
+          return updated;
+        });
+        setHasNextPage(apiHasNextPage);
+        setTotalDocs(totalDocs);
+        setNotificationPage(page);
+        console.log("State updated:", {
+          notificationsLength: append
+            ? prev.length + newNotifications.length
+            : newNotifications.length,
+          hasNextPage: apiHasNextPage,
+          totalDocs,
+          page,
+        });
       } catch (error) {
+        console.error("Fetch notifications error:", error);
         setError("Failed to load notifications.");
-        setNotifications([]);
+        if (!append) {
+          setNotifications([]);
+          setTotalDocs(0);
+        }
+      } finally {
+        setLoadingMore(false);
       }
-    };
+    },
+    [user]
+  );
 
-    fetchNotifications();
-  }, [user]);
+  useEffect(() => {
+    if (user) {
+      fetchNotifications(1);
+    } else {
+      setNotifications([]);
+      setNotificationPage(1);
+      setHasNextPage(true);
+      setTotalDocs(0);
+    }
+  }, [user, fetchNotifications]);
+
+  const loadMoreNotifications = useCallback(() => {
+    if (hasNextPage && !loadingMore) {
+      console.log("Load More clicked, fetching page:", notificationPage + 1);
+      fetchNotifications(notificationPage + 1, true);
+    }
+  }, [hasNextPage, loadingMore, notificationPage, fetchNotifications]);
 
   const markNotificationAsRead = async (id) => {
     try {
@@ -447,7 +535,7 @@ export default function Header() {
     try {
       await axiosInstance.delete(`/notifications/${id}`);
       setNotifications((prev) => prev.filter((n) => n._id !== id));
-      setNotificationOpen(false);
+      setTotalDocs((prev) => prev - 1);
     } catch (error) {
       setError("Failed to delete notification.");
     }
@@ -457,6 +545,7 @@ export default function Header() {
     try {
       await axiosInstance.delete("/notifications");
       setNotifications([]);
+      setTotalDocs(0);
       setNotificationOpen(false);
     } catch (error) {
       setError("Failed to delete all notifications.");
@@ -471,6 +560,7 @@ export default function Header() {
   };
 
   const toggleNotificationDropdown = () => setNotificationOpen((prev) => !prev);
+
   const toggleSearch = () => {
     setSearchOpen((prev) => !prev);
     if (!searchOpen) {
@@ -479,6 +569,7 @@ export default function Header() {
       }, 100);
     }
   };
+
   const toggleNav = () => setNavOpen((prev) => !prev);
   const modelHandler = () => setModel(true);
 
@@ -555,11 +646,84 @@ export default function Header() {
             className="max-w-[28rem] mx-auto"
             onKeyDown={handleSearchKeyDown}
           />
-        </div>
-        <div className="md:hidden">
-          <button onClick={toggleSearch} aria-label="Toggle search">
-            <Search className="h-5 w-5 text-gray-900 dark:text-gray-100" />
-          </button>
+          {debounceQuery && (
+            <div
+              className="absolute left-0 right-0 mx-auto w-full max-w-[28rem] bg-white dark:bg-gray-900 shadow-lg rounded-lg max-h-[70vh] overflow-y-auto z-50 top-[60px]"
+              role="listbox"
+              aria-label="Search results"
+            >
+              {loading ? (
+                <div className="p-4 flex justify-center items-center">
+                  <Loading />
+                </div>
+              ) : error ? (
+                <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                  {error}
+                </div>
+              ) : users.length === 0 && posts.length === 0 ? (
+                <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                  No results found for "{debounceQuery}".
+                </div>
+              ) : (
+                <div className="p-4">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Found {users.length + posts.length} result
+                    {users.length + posts.length !== 1 ? "s" : ""}
+                  </div>
+                  {users.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                        Users
+                      </h3>
+                      {users.map((user, index) => (
+                        <div
+                          key={user._id}
+                          className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                            focusedResult === index
+                              ? "bg-gray-100 dark:bg-gray-800"
+                              : ""
+                          }`}
+                          role="option"
+                          aria-selected={focusedResult === index}
+                        >
+                          <UserCard
+                            user={user}
+                            compact
+                            onClick={handleResultClick}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {posts.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                        Posts
+                      </h3>
+                      {posts.map((post, index) => (
+                        <div
+                          key={post._id}
+                          className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                            focusedResult === users.length + index
+                              ? "bg-gray-100 dark:bg-gray-800"
+                              : ""
+                          }`}
+                          role="option"
+                          aria-selected={focusedResult === users.length + index}
+                        >
+                          <PostCard
+                            post={post}
+                            compact
+                            onClick={handleResultClick}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {searchOpen && (
@@ -596,83 +760,82 @@ export default function Header() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-          </div>
-        )}
-
-        {debounceQuery && (searchOpen || !isMobile) && (
-          <div
-            className={`absolute left-0 right-0 mx-auto w-full max-w-[28rem] bg-white dark:bg-gray-900 shadow-lg rounded-lg max-h-[70vh] overflow-y-auto z-50 transition-all duration-200 ${
-              searchOpen ? "top-20 md:top-[60px]" : "top-[60px]"
-            }`}
-            role="listbox"
-            aria-label="Search results"
-          >
-            {loading ? (
-              <div className="p-4 flex justify-center items-center">
-                <Loading />
-              </div>
-            ) : error ? (
-              <div className="p-4 text-center text-gray-600 dark:text-gray-300">
-                {error}
-              </div>
-            ) : users.length === 0 && posts.length === 0 ? (
-              <div className="p-4 text-center text-gray-600 dark:text-gray-300">
-                No results found for "{debounceQuery}".
-              </div>
-            ) : (
-              <div className="p-4">
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  Found {users.length + posts.length} result
-                  {users.length + posts.length !== 1 ? "s" : ""}
-                </div>
-                {users.length > 0 && (
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                      Users
-                    </h3>
-                    {users.map((user, index) => (
-                      <div
-                        key={user._id}
-                        className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
-                          focusedResult === index
-                            ? "bg-gray-100 dark:bg-gray-800"
-                            : ""
-                        }`}
-                        role="option"
-                        aria-selected={focusedResult === index}
-                      >
-                        <UserCard
-                          user={user}
-                          compact
-                          onClick={handleResultClick}
-                        />
-                      </div>
-                    ))}
+            {debounceQuery && (
+              <div
+                className="p-4 w-full max-w-[28rem] mx-auto bg-white dark:bg-gray-900 shadow-lg rounded-lg max-h-[70vh] overflow-y-auto"
+                role="listbox"
+                aria-label="Search results"
+              >
+                {loading ? (
+                  <div className="p-4 flex justify-center items-center">
+                    <Loading />
                   </div>
-                )}
-                {posts.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                      Posts
-                    </h3>
-                    {posts.map((post, index) => (
-                      <div
-                        key={post._id}
-                        className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
-                          focusedResult === users.length + index
-                            ? "bg-gray-100 dark:bg-gray-800"
-                            : ""
-                        }`}
-                        role="option"
-                        aria-selected={focusedResult === users.length + index}
-                      >
-                        <PostCard
-                          post={post}
-                          compact
-                          onClick={handleResultClick}
-                        />
+                ) : error ? (
+                  <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                    {error}
+                  </div>
+                ) : users.length === 0 && posts.length === 0 ? (
+                  <div className="p-4 text-center text-gray-600 dark:text-gray-300">
+                    No results found for "{debounceQuery}".
+                  </div>
+                ) : (
+                  <div className="p-4">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Found {users.length + posts.length} result
+                      {users.length + posts.length !== 1 ? "s" : ""}
+                    </div>
+                    {users.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                          Users
+                        </h3>
+                        {users.map((user, index) => (
+                          <div
+                            key={user._id}
+                            className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                              focusedResult === index
+                                ? "bg-gray-100 dark:bg-gray-800"
+                                : ""
+                            }`}
+                            role="option"
+                            aria-selected={focusedResult === index}
+                          >
+                            <UserCard
+                              user={user}
+                              compact
+                              onClick={handleResultClick}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                    {posts.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                          Posts
+                        </h3>
+                        {posts.map((post, index) => (
+                          <div
+                            key={post._id}
+                            className={`mb-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                              focusedResult === users.length + index
+                                ? "bg-gray-100 dark:bg-gray-800"
+                                : ""
+                            }`}
+                            role="option"
+                            aria-selected={
+                              focusedResult === users.length + index
+                            }
+                          >
+                            <PostCard
+                              post={post}
+                              compact
+                              onClick={handleResultClick}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -718,6 +881,10 @@ export default function Header() {
               model={model}
               isMobile={isMobile}
               setError={setError}
+              loadingMore={loadingMore}
+              hasNextPage={hasNextPage}
+              loadMoreNotifications={loadMoreNotifications}
+              totalDocs={totalDocs}
             />
           </div>
 
