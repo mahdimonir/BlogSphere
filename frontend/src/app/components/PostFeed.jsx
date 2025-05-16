@@ -26,13 +26,20 @@ export default function PostFeed({
   // Fetch posts from the server
   const fetchPosts = useCallback(async () => {
     try {
-      // setLoading(true);
       setError(null);
 
       const params = { page, limit };
       if (activeCategory !== "All") params.catagory = activeCategory;
 
-      if (sortBy) {
+      let endpoint = "/posts";
+      if (sortBy === "Pending" && user) {
+        // Fetch pending posts for the authenticated user
+        endpoint = `/posts/pending?author=${user.userName}`;
+      } else if (isAdminView && user?.role === "admin") {
+        // Fetch pending posts for admin view
+        endpoint = "/posts/pending";
+      } else {
+        // Apply sorting for non-pending options
         let sortField = "";
         let order = "desc";
 
@@ -51,8 +58,6 @@ export default function PostFeed({
         params.order = order;
       }
 
-      const endpoint =
-        isAdminView && user?.role === "admin" ? "/posts/pending" : "/posts";
       const response = await axiosInstance.get(endpoint, { params });
 
       setPosts(response.data.data.posts || []);
@@ -63,7 +68,7 @@ export default function PostFeed({
     } finally {
       setLoading(false);
     }
-  }, [activeCategory, sortBy, page, isAdminView, user?.role]);
+  }, [activeCategory, sortBy, page, isAdminView, user]);
 
   // Fetch posts when category, sort, or page changes
   useEffect(() => {
@@ -90,8 +95,8 @@ export default function PostFeed({
         setActiveCategory={setActiveCategory}
         sortBy={sortBy}
         setSortBy={setSortBy}
+        user={user} // Pass user to FilterBar
       />
-      {/* { posts.length > 0 ? ( */}
       <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {posts.map((post) => (
@@ -122,11 +127,6 @@ export default function PostFeed({
           </div>
         )}
       </>
-      {/* ) : (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-4">
-          No posts available.
-        </div>
-      )} */}
     </div>
   );
 }

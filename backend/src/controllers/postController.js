@@ -720,24 +720,13 @@ const getPendingPosts = asyncHandler(async (req, res) => {
 });
 
 const getSuspendedPosts = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, author } = req.query;
+  const { page = 1, limit = 10, query } = req.query;
   const userId = req.userId;
-
-  // Resolve author userName to userId if provided
-  let authorId;
-  if (author) {
-    const user = await User.findOne({ userName: author }).select("_id");
-    if (!user) {
-      return res
-        .status(404)
-        .json(new ApiResponse(404, null, "Author not found"));
-    }
-    authorId = user._id;
-  }
 
   const matchStage = {
     isSuspended: true,
-    ...{ author: new mongoose.Types.ObjectId(userId) },
+    author: new mongoose.Types.ObjectId(userId),
+    ...(query && { title: { $regex: query, $options: "i" } }),
   };
 
   const aggregate = Post.aggregate([
@@ -748,9 +737,57 @@ const getSuspendedPosts = asyncHandler(async (req, res) => {
         localField: "author",
         foreignField: "_id",
         as: "author",
+        pipeline: [{ $project: { userName: 1, _id: 1 } }],
       },
     },
     { $unwind: "$author" },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "likes",
+        foreignField: "_id",
+        as: "likes",
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "likes.likedBy",
+        foreignField: "_id",
+        as: "likeUsers",
+      },
+    },
+    {
+      $addFields: {
+        likes: {
+          $map: {
+            input: "$likes",
+            as: "like",
+            in: {
+              likedBy: {
+                $let: {
+                  vars: {
+                    user: {
+                      $arrayElemAt: [
+                        "$likeUsers",
+                        {
+                          $indexOfArray: ["$likeUsers._id", "$$like.likedBy"],
+                        },
+                      ],
+                    },
+                  },
+                  in: {
+                    _id: "$$user._id",
+                    userName: "$$user.userName",
+                    avatar: "$$user.avatar",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     {
       $project: {
         title: 1,
@@ -758,12 +795,19 @@ const getSuspendedPosts = asyncHandler(async (req, res) => {
         excerpt: 1,
         author: { userName: 1, _id: 1 },
         createdAt: 1,
-        likes: 1,
         commentCount: 1,
         isSuspended: 1,
         suspensionReason: 1,
+        likeCount: { $size: "$likes" },
+        likes: 1,
       },
     },
+    {
+      $project: {
+        likeUsers: 0,
+      },
+    },
+    { $sort: { createdAt: -1 } },
   ]);
 
   const options = {

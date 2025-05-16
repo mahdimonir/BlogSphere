@@ -21,17 +21,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const useClickOutside = (callback) => {
   const ref = useRef(null);
-  const callbackRef = useCallback(callback, [callback]);
 
   useEffect(() => {
+    let called = false;
     const handleClickOutside = (event) => {
       if (ref.current && !ref.current.contains(event.target)) {
-        setTimeout(() => callback(), 100);
+        if (!called) {
+          called = true;
+          setTimeout(() => {
+            callback();
+            called = false;
+          }, 100);
+        }
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [callbackRef]);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [callback]);
 
   return ref;
 };
@@ -114,10 +124,6 @@ const UserActions = ({ user, logout, authLoading, model, onClick }) => {
   return user ? (
     <button
       onClick={() => {
-        logout();
-        if (onClick) onClick();
-      }}
-      onTouchStart={() => {
         logout();
         if (onClick) onClick();
       }}
@@ -756,48 +762,46 @@ export default function Header() {
             <AlignJustify className="h-5 w-5" />
           </button>
 
-          <div
-            className={`fixed top-0 h-screen md:hidden ${
-              model
-                ? "right-0 bg-white dark:bg-gray-900 w-[12rem] p-4"
-                : "-left-full bg-transparent"
-            } transition-all duration-300 ease-in-out z-50`}
-            ref={mobileMenuRef}
-          >
-            <button
-              className="text-red-500 self-end mb-4"
-              onClick={() => setModel(false)}
-              aria-label="Close mobile menu"
+          {model && (
+            <div
+              className="fixed top-0 right-0 h-screen md:hidden bg-white dark:bg-gray-900 w-[12rem] p-4 transition-all duration-300 ease-in-out z-50"
+              ref={mobileMenuRef}
             >
-              <X className="h-5 w-5" />
-            </button>
-            {user && (
-              <Link
-                href="/profile"
-                className="flex justify-center mb-6"
+              <button
+                className="text-red-500 self-end mb-4"
                 onClick={() => setModel(false)}
+                aria-label="Close mobile menu"
               >
-                {user.avatar ? (
-                  <Image
-                    src={user.avatar}
-                    alt="User avatar"
-                    width={64}
-                    height={64}
-                    className="rounded-full border-2 border-gray-900 dark:border-gray-100 object-cover"
-                  />
-                ) : (
-                  <div className="border-2 w-16 h-16 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100">
-                    <ProfileIcon className="h-12 w-12 p-1 text-gray-900 dark:text-gray-100" />
-                  </div>
-                )}
-              </Link>
-            )}
-            <NavLinks
-              user={user}
-              onClick={() => setModel(false)}
-              isMobile={true}
-            />
-          </div>
+                <X className="h-5 w-5" />
+              </button>
+              {user && (
+                <Link
+                  href="/profile"
+                  className="flex justify-center mb-6"
+                  onClick={() => setModel(false)}
+                >
+                  {user.avatar ? (
+                    <Image
+                      src={user.avatar}
+                      alt="User avatar"
+                      width={64}
+                      height={64}
+                      className="rounded-full border-2 border-gray-900 dark:border-gray-100 object-cover"
+                    />
+                  ) : (
+                    <div className="border-2 w-16 h-16 flex items-center justify-center rounded-full border-gray-900 dark:border-gray-100">
+                      <ProfileIcon className="h-12 w-12 p-1 text-gray-900 dark:text-gray-100" />
+                    </div>
+                  )}
+                </Link>
+              )}
+              <NavLinks
+                user={user}
+                onClick={() => setModel(false)}
+                isMobile={true}
+              />
+            </div>
+          )}
         </div>
       </div>
     </nav>
