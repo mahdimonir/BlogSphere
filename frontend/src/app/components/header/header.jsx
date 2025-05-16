@@ -117,10 +117,6 @@ const UserActions = ({ user, logout, authLoading, model, onClick }) => {
         logout();
         if (onClick) onClick();
       }}
-      onTouchStart={() => {
-        logout();
-        if (onClick) onClick();
-      }}
       className="text-sm text-white bg-red-400 hover:bg-red-500 hover:shadow text-center px-3 py-1 rounded-sm w-full cursor-pointer"
       aria-label="Logout"
     >
