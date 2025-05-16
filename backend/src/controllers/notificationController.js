@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { Notification } from "../models/notificationModel.js";
 import { ForbiddenError, NotFoundError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -6,43 +5,43 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { throwIf } from "../utils/throwIf.js";
 
 // Get paginated notifications for the authenticated user
-const getNotifications = asyncHandler(async (req, res) => {
-  throwIf(!req.userId, new ForbiddenError("Unauthorized"));
+Notification.createIndexes({ user: 1, createdAt: -1 });
 
-  const { page = 1, limit = 10 } = req.query;
-  const userId = req.userId;
-
-  const aggregate = Notification.aggregate([
-    {
-      $match: {
-        user: new mongoose.Types.ObjectId(userId),
+const getNotifications = async (req, res, next) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+    const totalDocs = await Notification.countDocuments({ user: req.user._id });
+    const notifications = await Notification.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+    const hasNextPage = page * limit < totalDocs;
+    console.log({
+      page,
+      skip,
+      limit,
+      totalDocs,
+      hasNextPage,
+      notifications: notifications.length,
+    });
+    res.status(200).json({
+      data: {
+        notifications,
+        totalDocs,
+        hasNextPage,
+        currentPage: page,
+        totalPages: Math.ceil(totalDocs / limit),
       },
-    },
-    {
-      $sort: { createdAt: -1 },
-    },
-  ]);
-
-  const options = {
-    page: parseInt(page, 10),
-    limit: parseInt(limit, 10),
-  };
-
-  const result = await Notification.aggregatePaginate(aggregate, options);
-
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        notifications: result.docs,
-        totalPages: result.totalPages,
-        currentPage: result.page,
-        totalNotifications: result.totalDocs,
-      },
-      "Notifications retrieved successfully"
-    )
-  );
-});
+      success: true,
+      message: "Notifications retrieved successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // Mark a notification as read
 const markNotificationAsRead = asyncHandler(async (req, res) => {
