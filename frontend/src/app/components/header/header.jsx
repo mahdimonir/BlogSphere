@@ -23,26 +23,23 @@ const useClickOutside = (callback) => {
   const ref = useRef(null);
 
   useEffect(() => {
+    let called = false;
     const handleClickOutside = (event) => {
       if (ref.current && !ref.current.contains(event.target)) {
-        callback();
+        if (!called) {
+          called = true;
+          setTimeout(() => {
+            callback();
+            called = false;
+          }, 100);
+        }
       }
     };
-
-    document.addEventListener("mousedown", handleClickOutside, {
-      capture: true,
-    });
-    document.addEventListener("touchstart", handleClickOutside, {
-      capture: true,
-    });
-
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside, {
-        capture: true,
-      });
-      document.removeEventListener("touchstart", handleClickOutside, {
-        capture: true,
-      });
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
     };
   }, [callback]);
 
