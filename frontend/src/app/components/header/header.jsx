@@ -21,17 +21,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const useClickOutside = (callback) => {
   const ref = useRef(null);
-  const callbackRef = useCallback(callback, [callback]);
 
   useEffect(() => {
+    let called = false;
     const handleClickOutside = (event) => {
       if (ref.current && !ref.current.contains(event.target)) {
-        setTimeout(() => callback(), 100);
+        if (!called) {
+          called = true;
+          setTimeout(() => {
+            callback();
+            called = false;
+          }, 100);
+        }
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [callbackRef]);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [callback]);
 
   return ref;
 };
